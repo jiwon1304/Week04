@@ -19,20 +19,25 @@ void UWorld::Initialize()
 
     FManagerOBJ::CreateStaticMesh("Assets/bitten_apple_mid.obj");
 
-    for (int i = 0; i < 50; ++i)
+#ifdef _DEBUG
+    AActor* SpawnedActor = SpawnActor<AActor>();
+    UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+    AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+#else
+    for (int i = 0; i < 50; i++)
     {
-        for (int j = 0; j < 50; ++j)
+        for (int j = 0; j < 50; j++)
         {
-            for (int k = 0; k < 20; ++k)
+            for (int k = 0; k < 20; k++)
             {
                 AActor* SpawnedActor = SpawnActor<AActor>();
-                UStaticMeshComponent* TestApple = SpawnedActor->AddComponent<UStaticMeshComponent>();
-                // TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"bitten_apple_mid.obj"));
-                TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
-                
+                UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+                AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+                SpawnedActor->SetActorLocation(FVector(i, j, k));
             }
         }
     }
+#endif
 }
 
 void UWorld::CreateBaseObject()
@@ -63,11 +68,13 @@ void UWorld::ReleaseBaseObject()
         LocalGizmo = nullptr;
     }
 
+    /* W04
     if (worldGizmo)
     {
         delete worldGizmo;
         worldGizmo = nullptr;
     }
+    */
 
     if (camera)
     {
@@ -85,10 +92,11 @@ void UWorld::ReleaseBaseObject()
 
 void UWorld::Tick(float DeltaTime)
 {
-	camera->TickComponent(DeltaTime);
-	EditorPlayer->Tick(DeltaTime);
-	LocalGizmo->Tick(DeltaTime);
+	//camera->TickComponent(DeltaTime); // W04
+	EditorPlayer->Tick(DeltaTime); // TODO: W04 - 최적화 하기
+	// LocalGizmo->Tick(DeltaTime); // TODO: W04 - 기즈모 조작 필요하면 주석 제거
 
+    /* W04
     // SpawnActor()에 의해 Actor가 생성된 경우, 여기서 BeginPlay 호출
     for (AActor* Actor : PendingBeginPlayActors)
     {
@@ -101,7 +109,26 @@ void UWorld::Tick(float DeltaTime)
 	{
 	    Actor->Tick(DeltaTime);
 	}
+	*/
 }
+
+void UWorld::SetPickedActor(AActor* InActor)
+{
+    SelectedActor = InActor;
+
+    // W04 - LocalGizmo의 Tick에서 하던걸 선택시 한번만 하게 변경. 기즈모 조작을 하지 않는다고 가정했기 때문. 
+    LocalGizmo->SetActorLocation(SelectedActor->GetActorLocation());
+    /*
+    if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_LOCAL)
+    {
+        // TODO: 임시로 RootComponent의 정보로 사용
+        SetActorRotation(PickedActor->GetActorRotation());
+    }
+    else if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_WORLD)
+        SetActorRotation(FVector(0.0f, 0.0f, 0.0f));
+    */
+}
+
 
 void UWorld::Release()
 {
