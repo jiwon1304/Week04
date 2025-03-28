@@ -116,11 +116,11 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     ResourceManager.Initialize(&Renderer, &GraphicDevice);
     LevelEditor = new SLevelEditor();
     LevelEditor->Initialize();
-
     Renderer.SetViewport(LevelEditor->GetActiveViewportClient());
 
     GWorld = new UWorld;
     GWorld->Initialize();
+    Renderer.SetWorld(GWorld);
 
     LevelEditor->OffMultiViewport();
     
@@ -132,7 +132,7 @@ void FEngineLoop::Render()
 {
     GraphicDevice.Prepare();
     Renderer.PrepareRender();
-    Renderer.Render(GetWorld(), LevelEditor->GetActiveViewportClient());
+    Renderer.Render();
     
     /*if (LevelEditor->IsMultiViewport())
     {
@@ -155,7 +155,9 @@ void FEngineLoop::Render()
 void FEngineLoop::Tick()
 {
     LARGE_INTEGER frequency;
-    const double targetFrameTime = 1000.0 / targetFPS; // 한 프레임의 목표 시간 (밀리초 단위)
+    
+    bool bLimitFramerate = targetFPS > 0;
+    const double targetFrameTime = bLimitFramerate ? 1000.0 / targetFPS : 0.f; // 한 프레임의 목표 시간 (밀리초 단위)
 
     QueryPerformanceFrequency(&frequency);
 
@@ -191,16 +193,20 @@ void FEngineLoop::Tick()
         UIMgr->EndFrame();
 
         // Pending 처리된 오브젝트 제거
-        GUObjectArray.ProcessPendingDestroyObjects();
+        // GUObjectArray.ProcessPendingDestroyObjects(); // W04
 
         GraphicDevice.SwapBuffer();
-        do
+
+        if (bLimitFramerate)
         {
-            Sleep(0);
-            QueryPerformanceCounter(&endTime);
-            elapsedTime = (endTime.QuadPart - startTime.QuadPart) * 1000.0 / frequency.QuadPart;
+            do
+            {
+                Sleep(0);
+                QueryPerformanceCounter(&endTime);
+                elapsedTime = (endTime.QuadPart - startTime.QuadPart) * 1000.0 / frequency.QuadPart;
+            }
+            while (elapsedTime < targetFrameTime);
         }
-        while (elapsedTime < targetFrameTime);
     }
 }
 

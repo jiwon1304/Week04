@@ -139,6 +139,7 @@ void FGraphicsDevice::CreateRasterizerState()
     rasterizerdesc.FillMode = D3D11_FILL_SOLID;
     rasterizerdesc.CullMode = D3D11_CULL_BACK;
     Device->CreateRasterizerState(&rasterizerdesc, &RasterizerStateSOLID);
+    DeviceContext->RSSetState(RasterizerStateSOLID); // W04 - 레스터라이저는 초기화시 한번만 설정
 
     rasterizerdesc.FillMode = D3D11_FILL_WIREFRAME;
     rasterizerdesc.CullMode = D3D11_CULL_BACK;
@@ -281,9 +282,11 @@ void FGraphicsDevice::Release()
     ReleaseDeviceAndSwapChain();
 }
 
-void FGraphicsDevice::SwapBuffer() {
-    SwapChain->Present(1, 0);
+void FGraphicsDevice::SwapBuffer()
+{
+    SwapChain->Present(0, 0);
 }
+
 void FGraphicsDevice::Prepare()
 {
     DeviceContext->ClearRenderTargetView(FrameBufferRTV, ClearColor); // 렌더 타겟 뷰에 저장된 이전 프레임 데이터를 삭제

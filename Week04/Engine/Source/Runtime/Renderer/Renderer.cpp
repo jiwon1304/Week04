@@ -30,11 +30,20 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateConstantBuffer();
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
+
+    // W04 - Setup
+    PrepareShader(); // W04 - 쉐이더 설정은 한번만
 }
 
-void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> ActiveViewport)
+void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport)
 {
+    ActiveViewport = InActiveViewport;
     Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport());
+}
+
+void FRenderer::SetWorld(UWorld* InWorld)
+{
+    World = InWorld;
 }
 
 void FRenderer::Release()
@@ -58,9 +67,9 @@ void FRenderer::CreateShader()
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
 
     Graphics->Device->CreateInputLayout(
@@ -1011,15 +1020,15 @@ void FRenderer::ClearRenderArr()
 {
     StaticMeshObjs.Empty();
     GizmoObjs.Empty();
-    BillboardObjs.Empty();
-    LightObjs.Empty();
+    //BillboardObjs.Empty();
+    //LightObjs.Empty();
 }
 
-void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
+void FRenderer::Render()
 {
     // Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행
     
-    Graphics->ChangeRasterizer(VMI_Lit);
+    // Graphics->ChangeRasterizer(VMI_Lit);
     
     // ChangeViewMode(ActiveViewport->GetViewMode()); // W04
     
@@ -1029,10 +1038,10 @@ void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> Act
     UPrimitiveBatch::GetInstance().RenderBatch(ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix());
 
     UpdateIsGizmoConstant(0);
-    RenderStaticMeshes(World, ActiveViewport);
+    RenderStaticMeshes();
 
     UpdateIsGizmoConstant(1);
-    RenderGizmos(World, ActiveViewport);
+    RenderGizmos();
 
     /* W04
     if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_BillboardText))
@@ -1044,16 +1053,15 @@ void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> Act
     ClearRenderArr();
 }
 
-void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
+void FRenderer::RenderStaticMeshes()
 {
-    PrepareShader();
     for (UStaticMeshComponent* StaticMeshComp : StaticMeshObjs)
     {
         if (!StaticMeshComp->GetStaticMesh()) continue;
 
         OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
-
         if (renderData == nullptr) continue;
+
         FMatrix Model = JungleMath::CreateModelMatrix(
             StaticMeshComp->GetWorldLocation(),
             StaticMeshComp->GetWorldRotation(),
@@ -1062,18 +1070,22 @@ void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewpor
         // 최종 MVP 행렬
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
         FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
-        if (World->GetSelectedActor() == StaticMeshComp->GetOwner())
-        {
-            UpdateConstant(MVP, UUIDColor, true);
-        }
-        else
-            UpdateConstant(MVP, UUIDColor, false);
+        UpdateConstant(MVP, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
 
+        if (false) // TODO: W04 - 선택한 오브젝트의 바운딩 박스를 그려야 함.
+        {
+            UPrimitiveBatch::GetInstance().RenderAABB(
+                        StaticMeshComp->GetBoundingBox(),
+                        StaticMeshComp->GetWorldLocation(),
+                        Model
+                    );
+        }
+        
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
     }
 }
 
-void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorViewportClient>& ActiveViewport)
+void FRenderer::RenderGizmos()
 {
     if (!World->GetSelectedActor())
     {
@@ -1085,11 +1097,14 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
         Graphics->DeviceContext->OMSetDepthStencilState(DepthStateDisable, 0);
     #pragma endregion GizmoDepth
 
-    //  fill solid,  Wirframe 에서도 제대로 렌더링되기 위함
-    Graphics->DeviceContext->RSSetState(FEngineLoop::GraphicDevice.RasterizerStateSOLID);
+    //  fill solid,  Wirframe 에서도 제대로 렌더링되기 위함. W04 - 레스터라이저 생성 시 설정해주고 있음.
+    // Graphics->DeviceContext->RSSetState(FEngineLoop::GraphicDevice.RasterizerStateSOLID);
     
     for (auto GizmoComp : GizmoObjs)
     {
+        if (!GizmoComp->GetStaticMesh()) continue;
+        OBJ::FStaticMeshRenderData* renderData = GizmoComp->GetStaticMesh()->GetRenderData();
+        if (renderData == nullptr) continue;
         
         if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowX ||
             GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowY ||
@@ -1119,15 +1134,8 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
         else
             UpdateConstant(MVP, UUIDColor, false);
 
-        if (!GizmoComp->GetStaticMesh()) continue;
-
-        OBJ::FStaticMeshRenderData* renderData = GizmoComp->GetStaticMesh()->GetRenderData();
-        if (renderData == nullptr) continue;
-
         RenderPrimitive(renderData, GizmoComp->GetStaticMesh()->GetMaterials(), GizmoComp->GetOverrideMaterials());
     }
-
-    Graphics->DeviceContext->RSSetState(Graphics->GetCurrentRasterizer());
 
 #pragma region GizmoDepth
     ID3D11DepthStencilState* originalDepthState = Graphics->DepthStencilState;
@@ -1135,7 +1143,7 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
 #pragma endregion GizmoDepth
 }
 
-void FRenderer::RenderBillboards(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
+void FRenderer::RenderBillboards()
 {
     PrepareTextureShader();
     PrepareSubUVConstant();
@@ -1178,7 +1186,7 @@ void FRenderer::RenderBillboards(UWorld* World, std::shared_ptr<FEditorViewportC
     PrepareShader();
 }
 
-void FRenderer::RenderLight(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
+void FRenderer::RenderLight()
 {
     for (auto Light : LightObjs)
     {

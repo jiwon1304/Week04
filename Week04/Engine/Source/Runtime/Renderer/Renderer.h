@@ -137,14 +137,15 @@ public: // line shader
     void UpdateConesBuffer(ID3D11Buffer* pConeBuffer, const TArray<FCone>& Cones, int numCones) const;
 
     //Render Pass Demo
-    void SetViewport(std::shared_ptr<FEditorViewportClient> ActiveViewport);
+    void SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport);
+    void SetWorld(UWorld* InWorld);
     void PrepareRender();
     void ClearRenderArr();
-    void Render(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport);
-    void RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport);
-    void RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorViewportClient>& ActiveViewport);
-    void RenderLight(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport);
-    void RenderBillboards(UWorld* World,std::shared_ptr<FEditorViewportClient> ActiveViewport);
+    void Render();
+    void RenderStaticMeshes();
+    void RenderGizmos();
+    void RenderLight();
+    void RenderBillboards();
 private:
     TArray<UStaticMeshComponent*> StaticMeshObjs;
     TArray<UGizmoBaseComponent*> GizmoObjs;
@@ -159,5 +160,9 @@ public:
     ID3D11ShaderResourceView* pBBSRV = nullptr;
     ID3D11ShaderResourceView* pConeSRV = nullptr;
     ID3D11ShaderResourceView* pOBBSRV = nullptr;
+
+private:
+    std::shared_ptr<FEditorViewportClient> ActiveViewport;
+    UWorld* World = nullptr;
 };
 
