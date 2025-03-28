@@ -43,6 +43,9 @@ PS_OUTPUT mainPS(PS_INPUT input)
     PS_OUTPUT output;
     
     output.UUID = UUID;
+    // 라이팅 무시
+    //output.color = Textures.Sample(Sampler, input.texcoord + UVOffset);
+    //return output;
     
     float3 TexColor = Textures.Sample(Sampler, input.texcoord);
     

@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "LevelEditor/SLevelEditor.h"
 #include "Engine/FLoaderOBJ.h"
+#include "Engine/Source/Editor/UnrealEd/SceneMgr.h"
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/SkySphereComponent.h"
@@ -14,30 +15,6 @@ void UWorld::Initialize()
 {
     // TODO: Load Scene
     CreateBaseObject();
-
-    FManagerOBJ::CreateStaticMesh("Assets/apple_mid.obj");
-
-    FManagerOBJ::CreateStaticMesh("Assets/bitten_apple_mid.obj");
-
-#ifdef _DEBUG
-    AActor* SpawnedActor = SpawnActor<AActor>();
-    UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
-    AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
-#else
-    for (int i = 0; i < 50; i++)
-    {
-        for (int j = 0; j < 50; j++)
-        {
-            for (int k = 0; k < 20; k++)
-            {
-                AActor* SpawnedActor = SpawnActor<AActor>();
-                UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
-                AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
-                SpawnedActor->SetActorLocation(FVector(i, j, k));
-            }
-        }
-    }
-#endif
 }
 
 void UWorld::CreateBaseObject()
@@ -148,6 +125,27 @@ void UWorld::Release()
 	ReleaseBaseObject();
 
     GUObjectArray.ProcessPendingDestroyObjects();
+}
+
+void UWorld::LoadSceneData(SceneData Scene)  
+{  
+   // 현재는 UUID까지 로드하지는 않음
+   // camera  
+   this->camera = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);  
+   
+   // primitives  
+   for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
+   {  
+       if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
+       {
+           AActor* SpawnedActor = SpawnActor<AActor>();
+           
+           Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
+           SpawnedActor->AddExternalComponent(Mesh);
+       }
+   }
+   CreateBaseObject();
+
 }
 
 bool UWorld::DestroyActor(AActor* ThisActor)

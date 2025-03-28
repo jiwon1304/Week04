@@ -177,6 +177,19 @@ public:
         ESearchDir::Type SearchDir = ESearchDir::FromStart, int32 StartPosition = -1
     ) const;
 
+    /**
+     * 원래 문자열에서 [pos, pos + count)까지의 문자열을 반환합니다.
+     * 
+     * \param Pos 시작하는 문자의 index
+     * \param Count 읽어들일 문자의 개수. 비어있으면 끝까지 읽습니다.
+     * \return 자른 문자열을 반환합니다.
+     */
+    inline FString SubStr(size_t Pos, size_t Count = static_cast<size_t>(-1)) const
+    {
+        //FString CopyStr{ *this };
+        return this->PrivateString.substr(Pos, Count);
+    }
+
 public:
     /** ElementType* 로 반환하는 연산자 */
     FORCEINLINE const ElementType* operator*() const;
@@ -260,4 +273,3 @@ inline const FString::ElementType* GetData(const FString& String)
 {
     return String.PrivateString.data();
 }
-

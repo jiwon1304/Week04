@@ -10,6 +10,7 @@
 #include "UnrealClient.h"
 #include "slate/Widgets/Layout/SSplitter.h"
 #include "LevelEditor/SLevelEditor.h"
+#include "UnrealEd\SceneMgr.h"
 
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -120,6 +121,9 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
     GWorld = new UWorld;
     GWorld->Initialize();
+    FString JsonStr = FSceneMgr::LoadSceneFromFile("Default1.scene");
+    SceneData Scene = FSceneMgr::ParseSceneData(JsonStr);
+    GWorld->LoadSceneData(Scene);
     Renderer.SetWorld(GWorld);
 
     LevelEditor->OffMultiViewport();
