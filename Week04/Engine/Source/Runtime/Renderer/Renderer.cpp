@@ -30,7 +30,6 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateConstantBuffer();
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
-    UpdateLitUnlitConstant(1);
 }
 
 void FRenderer::Release()
@@ -101,10 +100,10 @@ void FRenderer::PrepareShader() const
         Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(0, 1, &ConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
-        Graphics->DeviceContext->PSSetConstantBuffers(2, 1, &LightingBuffer);
+        // Graphics->DeviceContext->PSSetConstantBuffers(2, 1, &LightingBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(3, 1, &FlagBuffer);
-        Graphics->DeviceContext->PSSetConstantBuffers(4, 1, &SubMeshConstantBuffer);
-        Graphics->DeviceContext->PSSetConstantBuffers(5, 1, &TextureConstantBufer);
+        // Graphics->DeviceContext->PSSetConstantBuffers(4, 1, &SubMeshConstantBuffer);
+        // Graphics->DeviceContext->PSSetConstantBuffers(5, 1, &TextureConstantBufer);
     }
 }
 
@@ -152,6 +151,7 @@ void FRenderer::SetPixelShader(const FWString& filename, const FString& funcname
 
 void FRenderer::ChangeViewMode(EViewModeIndex evi) const
 {
+    /* W04 
     switch (evi)
     {
     case EViewModeIndex::VMI_Lit:
@@ -162,6 +162,7 @@ void FRenderer::ChangeViewMode(EViewModeIndex evi) const
         UpdateLitUnlitConstant(0);
         break;
     }
+    */
 }
 
 void FRenderer::RenderPrimitive(ID3D11Buffer* pBuffer, UINT numVertices) const
@@ -440,7 +441,6 @@ void FRenderer::UpdateConstant(const FMatrix& MVP, const FMatrix& NormalMatrix, 
         {
             FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
             constants->MVP = MVP;
-            constants->ModelMatrixInverseTranspose = NormalMatrix;
             constants->UUIDColor = UUIDColor;
             constants->IsSelected = IsSelected;
         }
@@ -452,20 +452,14 @@ void FRenderer::UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const
 {
     if (MaterialConstantBuffer)
     {
-        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR; // GPU�� �޸� �ּ� ����
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
 
         Graphics->DeviceContext->Map(MaterialConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
         {
             FMaterialConstants* constants = static_cast<FMaterialConstants*>(ConstantBufferMSR.pData);
             constants->DiffuseColor = MaterialInfo.Diffuse;
-            constants->TransparencyScalar = MaterialInfo.TransparencyScalar;
-            constants->AmbientColor = MaterialInfo.Ambient;
-            constants->DensityScalar = MaterialInfo.DensityScalar;
-            constants->SpecularColor = MaterialInfo.Specular;
-            constants->SpecularScalar = MaterialInfo.SpecularScalar;
-            constants->EmmisiveColor = MaterialInfo.Emissive;
         }
-        Graphics->DeviceContext->Unmap(MaterialConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
+        Graphics->DeviceContext->Unmap(MaterialConstantBuffer, 0);
     }
 
     if (MaterialInfo.bHasTexture == true)
@@ -493,6 +487,21 @@ void FRenderer::UpdateLitUnlitConstant(int isLit) const
         auto constants = static_cast<FLitUnlitConstants*>(constantbufferMSR.pData); //GPU �޸� ���� ����
         {
             constants->isLit = isLit;
+        }
+        Graphics->DeviceContext->Unmap(FlagBuffer, 0);
+    }
+}
+
+void FRenderer::UpdateIsGizmoConstant(int IsGizmo) const
+{
+    // W04 - 위 함수와 동일한 상수 버퍼를 다룸. 이번에는 IsLit을 IsGizmo로 용도를 변경하여 메시 렌더링 시 디퓨즈 맵과 컬러를 선택
+    if (FlagBuffer)
+    {
+        D3D11_MAPPED_SUBRESOURCE constantbufferMSR;
+        Graphics->DeviceContext->Map(FlagBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
+        auto constants = static_cast<FLitUnlitConstants*>(constantbufferMSR.pData);
+        {
+            constants->isLit = IsGizmo;
         }
         Graphics->DeviceContext->Unmap(FlagBuffer, 0);
     }
@@ -730,7 +739,7 @@ void FRenderer::UpdateSubUVConstant(float _indexU, float _indexV) const
 
 void FRenderer::PrepareSubUVConstant() const
 {
-    if (SubUVConstantBuffer)
+    if (SubUVConstantBuffer && false) // Not this time
     {
         Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &SubUVConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &SubUVConstantBuffer);
@@ -981,6 +990,7 @@ void FRenderer::PrepareRender()
         {
             GizmoObjs.Add(pGizmoComp);
         }
+        /* W04 - do not render those comps
         if (UBillboardComponent* pBillboardComp = Cast<UBillboardComponent>(iter))
         {
             BillboardObjs.Add(pBillboardComp);
@@ -989,6 +999,7 @@ void FRenderer::PrepareRender()
         {
             LightObjs.Add(pLightComp);
         }
+        */
     }
 }
 
@@ -1003,17 +1014,28 @@ void FRenderer::ClearRenderArr()
 void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
 {
     Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport());
+    
     Graphics->ChangeRasterizer(ActiveViewport->GetViewMode());
+    
     ChangeViewMode(ActiveViewport->GetViewMode());
-    UpdateLightBuffer();
+    
+    // UpdateLightBuffer(); // W04
+
+    // TODO: W04 - 아래 함수는 월드 그리드와 바운딩 박스를 렌더함. 그리드와 바운딩 박스 렌더 분리해야함.
     UPrimitiveBatch::GetInstance().RenderBatch(ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix());
 
-    if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_Primitives))
-        RenderStaticMeshes(World, ActiveViewport);
+    UpdateIsGizmoConstant(0);
+    RenderStaticMeshes(World, ActiveViewport);
+
+    UpdateIsGizmoConstant(1);
     RenderGizmos(World, ActiveViewport);
+
+    /* W04
     if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_BillboardText))
-        RenderBillboards(World, ActiveViewport);
+        RenderBillboards(World, ActiveViewport); 
+    
     RenderLight(World, ActiveViewport);
+    */
     
     ClearRenderArr();
 }
@@ -1082,6 +1104,8 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
 
     //  fill solid,  Wirframe 에서도 제대로 렌더링되기 위함
     Graphics->DeviceContext->RSSetState(FEngineLoop::GraphicDevice.RasterizerStateSOLID);
+
+    // TODO: W04 - flag 버퍼의 IsLit을 IsGizmo로 변경하여 픽셀 쉐이더에서 Diffuse 컬러 사용하게
     
     for (auto GizmoComp : GizmoObjs)
     {

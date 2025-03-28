@@ -19,9 +19,9 @@ void UWorld::Initialize()
 
     FManagerOBJ::CreateStaticMesh("Assets/bitten_apple_mid.obj");
     AActor* SpawnedActor = SpawnActor<AActor>();
-    UStaticMeshComponent* skySphere = SpawnedActor->AddComponent<UStaticMeshComponent>();
-    skySphere->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
-    skySphere->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"bitten_apple_mid.obj"));
+    UStaticMeshComponent* TestApple = SpawnedActor->AddComponent<UStaticMeshComponent>();
+    TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"bitten_apple_mid.obj"));
+    TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
 }
 
 void UWorld::CreateBaseObject()
