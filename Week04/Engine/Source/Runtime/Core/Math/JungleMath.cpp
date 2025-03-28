@@ -113,6 +113,7 @@ FQuat JungleMath::EulerToQuaternion(const FVector& eulerDegrees)
     quat.z = sinYaw * cosPitch * cosRoll - cosYaw * sinPitch * sinRoll;
 
     quat.Normalize();
+
     return quat;
 }
 FVector JungleMath::QuaternionToEuler(const FQuat& quat)

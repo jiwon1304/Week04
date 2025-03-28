@@ -250,7 +250,31 @@ struct FBoundingBox
 
         return true;
     }
-
+    FVector GetPositiveVertex(const FVector& normal) const {
+        FVector p = min;
+        if (normal.x >= 0) {
+            p.x = max.x;
+        }
+        if (normal.y >= 0) {
+            p.y = max.y;
+        }
+        if (normal.z >= 0) {
+            p.z = max.z;
+        }
+        return p;
+    }
+    TArray<FVector> GetVertices() {
+        TArray<FVector> vertices;
+        vertices.Add(FVector{ min.x, min.y, min.z });
+        vertices.Add(FVector{ min.x, min.y, max.z });
+        vertices.Add(FVector{ min.x, max.y, min.z });
+        vertices.Add(FVector{ min.x, max.y, max.z });
+        vertices.Add(FVector{ max.x, min.y, min.z });
+        vertices.Add(FVector{ max.x, min.y, max.z });
+        vertices.Add(FVector{ max.x, max.y, min.z });
+        vertices.Add(FVector{ max.x, max.y, max.z });
+        return vertices;
+    }
 };
 struct FCone
 {

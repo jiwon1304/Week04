@@ -28,19 +28,25 @@ void FEditorViewportClient::Draw(FViewport* Viewport)
 void FEditorViewportClient::Initialize(int32 viewportIndex)
 {
 
-    ViewTransformPerspective.SetLocation(FVector(8.0f, 8.0f, 8.f));
-    ViewTransformPerspective.SetRotation(FVector(0.0f, 45.0f, -135.0f));
+    //ViewTransformPerspective.SetLocation(FVector(8.0f, 8.0f, 8.f));
+    //ViewTransformPerspective.SetRotation(FVector(0.0f, 45.0f, -135.0f));
     Viewport = new FViewport(static_cast<EViewScreenLocation>(viewportIndex));
     ResizeViewport(GEngineLoop.GraphicDevice.SwapchainDesc);
     ViewportIndex = viewportIndex;
+    UpdateViewMatrix();
+    UpdateProjectionMatrix();
+    UpdateFrustum();
 }
 
 void FEditorViewportClient::Tick(float DeltaTime)
 {
     Input();
-    UpdateViewMatrix();
-    UpdateProjectionMatrix();
-
+    if (bCameraMoved) {
+        UpdateViewMatrix();
+        UpdateProjectionMatrix();
+        UpdateFrustum();
+        bCameraMoved = false;
+    }
 }
 
 void FEditorViewportClient::Release()
@@ -139,6 +145,7 @@ void FEditorViewportClient::ResizeViewport(const DXGI_SWAP_CHAIN_DESC& swapchain
     AspectRatio = GEngineLoop.GetAspectRatio(GEngineLoop.GraphicDevice.SwapChain);
     UpdateProjectionMatrix();
     UpdateViewMatrix();
+    UpdateFrustum();
 }
 void FEditorViewportClient::ResizeViewport(FRect Top, FRect Bottom, FRect Left, FRect Right)
 {
@@ -151,6 +158,7 @@ void FEditorViewportClient::ResizeViewport(FRect Top, FRect Bottom, FRect Left, 
     AspectRatio = GEngineLoop.GetAspectRatio(GEngineLoop.GraphicDevice.SwapChain);
     UpdateProjectionMatrix();
     UpdateViewMatrix();
+    UpdateFrustum();
 }
 bool FEditorViewportClient::IsSelected(POINT point)
 {
@@ -181,6 +189,7 @@ void FEditorViewportClient::CameraMoveForward(float _Value)
     {
         Pivot.x += _Value * 0.1f;
     }
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::CameraMoveRight(float _Value)
@@ -194,6 +203,7 @@ void FEditorViewportClient::CameraMoveRight(float _Value)
     {
         Pivot.y += _Value * 0.1f;
     }
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::CameraMoveUp(float _Value)
@@ -206,6 +216,7 @@ void FEditorViewportClient::CameraMoveUp(float _Value)
     else {
         Pivot.z += _Value * 0.1f;
     }
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::CameraRotateYaw(float _Value)
@@ -213,6 +224,7 @@ void FEditorViewportClient::CameraRotateYaw(float _Value)
     FVector curCameraRot = ViewTransformPerspective.GetRotation();
     curCameraRot.z += _Value ;
     ViewTransformPerspective.SetRotation(curCameraRot);
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::CameraRotatePitch(float _Value)
@@ -224,16 +236,19 @@ void FEditorViewportClient::CameraRotatePitch(float _Value)
     if (curCameraRot.y >= 89.0f)
         curCameraRot.y = 89.0f;
     ViewTransformPerspective.SetRotation(curCameraRot);
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::PivotMoveRight(float _Value)
 {
     Pivot = Pivot + ViewTransformOrthographic.GetRightVector() * _Value * -0.05f;
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::PivotMoveUp(float _Value)
 {
     Pivot = Pivot + ViewTransformOrthographic.GetUpVector() * _Value * 0.05f;
+    bCameraMoved = true;
 }
 
 void FEditorViewportClient::UpdateViewMatrix()
@@ -241,7 +256,7 @@ void FEditorViewportClient::UpdateViewMatrix()
     if (IsPerspective()) {
         View = JungleMath::CreateViewMatrix(ViewTransformPerspective.GetLocation(),
             ViewTransformPerspective.GetLocation() + ViewTransformPerspective.GetForwardVector(),
-            FVector{ 0.0f,0.0f, 1.0f });
+            FVector{ 0.0f,0.0f,1.0f });
     }
     else 
     {
@@ -285,6 +300,11 @@ void FEditorViewportClient::UpdateProjectionMatrix()
             farPlane
         );
     }
+}
+
+void FEditorViewportClient::UpdateFrustum()
+{
+    CameraFrustum.CreatePlane(ViewTransformPerspective, FOVAngle, nearPlane, farPlane, AspectRatio);
 }
 
 bool FEditorViewportClient::IsOrtho() const

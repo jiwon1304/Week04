@@ -17,9 +17,16 @@ void UWorld::Initialize(HWND hWnd)
 
 #ifdef _DEBUG
     FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
-    AActor* SpawnedActor = SpawnActor<AActor>();
-    UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
-    Mesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+    for (int i = 0; i < 10; i++) {
+        for (int j = 0; j < 10; j++) {
+            for (int k = 0; k < 10; k++) {
+                AActor* SpawnedActor = SpawnActor<AActor>();
+                UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+                Mesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+                SpawnedActor->SetActorLocation(FVector(i, j, k));
+            }
+        }
+    }
 #endif
 }
 
