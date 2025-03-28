@@ -21,12 +21,12 @@ class UWorld : public UObject
 public:
     UWorld() = default;
 
-    void Initialize();
-    void CreateBaseObject();
+    void Initialize(HWND hWnd);
+    void CreateBaseObject(HWND hWnd);
     void ReleaseBaseObject();
     void Tick(float DeltaTime);
     void Release();
-    void LoadSceneData(SceneData Scene);
+    void LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClient> ViewportClient);
 
     /**
      * World에 Actor를 Spawn합니다.

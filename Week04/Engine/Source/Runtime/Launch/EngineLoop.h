@@ -44,8 +44,10 @@ private:
     SLevelEditor* LevelEditor;
     UnrealEd* UnrealEditor;
     bool bIsExit = false;
-    const int32 targetFPS = 60;
+    const int32 TargetFPS = 0;
     bool bTestInput = false;
+
+    void LimitFPS(const LARGE_INTEGER& StartTime, const LARGE_INTEGER& Frequency, double TargetDeltaTime) const;
 
 public:
     UWorld* GetWorld() const { return GWorld; }

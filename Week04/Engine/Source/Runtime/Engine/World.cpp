@@ -8,26 +8,33 @@
 #include "Engine/Source/Editor/UnrealEd/SceneMgr.h"
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
-#include "Components/SkySphereComponent.h"
+#include "UnrealEd/EditorViewportClient.h"
 
 
-void UWorld::Initialize()
+void UWorld::Initialize(HWND hWnd)
 {
-    // TODO: Load Scene
-    CreateBaseObject();
+    CreateBaseObject(hWnd);
+
+#ifdef _DEBUG
+    FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+    AActor* SpawnedActor = SpawnActor<AActor>();
+    UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+    Mesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+#endif
 }
 
-void UWorld::CreateBaseObject()
+void UWorld::CreateBaseObject(HWND hWnd)
 {
     if (EditorPlayer == nullptr)
     {
-        EditorPlayer = FObjectFactory::ConstructObject<AEditorPlayer>();;
+        EditorPlayer = FObjectFactory::ConstructObject<AEditorPlayer>();
+        EditorPlayer->SetHWND(hWnd);
     }
 
     if (camera == nullptr)
     {
         camera = FObjectFactory::ConstructObject<UCameraComponent>();
-        camera->SetLocation(FVector(8.0f, 8.0f, 8.f));
+        camera->SetLocation(FVector(40.0f, 40.0f, 40.f));
         camera->SetRotation(FVector(0.0f, 45.0f, -135.0f));
     }
 
@@ -127,25 +134,28 @@ void UWorld::Release()
     GUObjectArray.ProcessPendingDestroyObjects();
 }
 
-void UWorld::LoadSceneData(SceneData Scene)  
+void UWorld::LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClient> ViewportClient)  
 {  
-   // 현재는 UUID까지 로드하지는 않음
-   // camera  
-   this->camera = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);  
+    // 현재는 UUID까지 로드하지는 않음
+    // camera  
+    UCameraComponent* CameraComp = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);
+    ViewportClient->ViewTransformPerspective.SetLocation(CameraComp->GetWorldLocation());
+    ViewportClient->ViewTransformPerspective.SetRotation(CameraComp->GetWorldRotation());
+    ViewportClient->ViewFOV = CameraComp->GetFOV();
+    ViewportClient->nearPlane = CameraComp->GetNearClip();
+    ViewportClient->farPlane = CameraComp->GetFarClip();
    
-   // primitives  
-   for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
-   {  
-       if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
-       {
-           AActor* SpawnedActor = SpawnActor<AActor>();
+    // primitives  
+    for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
+    {  
+        if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
+        {
+            AActor* SpawnedActor = SpawnActor<AActor>();
            
-           Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
-           SpawnedActor->AddExternalComponent(Mesh);
-       }
-   }
-   CreateBaseObject();
-
+            Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
+            SpawnedActor->AddExternalComponent(Mesh);
+        }
+    }
 }
 
 bool UWorld::DestroyActor(AActor* ThisActor)
