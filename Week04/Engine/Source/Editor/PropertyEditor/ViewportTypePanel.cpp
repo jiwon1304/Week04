@@ -36,7 +36,7 @@ void ViewportTypePanel::Draw(std::shared_ptr<FEditorViewportClient> ActiveViewpo
                 bool isSelected = ((int)ActiveViewport->GetViewMode() == i);
                 if (ImGui::Selectable(cameraModeNames[i], isSelected))
                 {
-                    ActiveViewport->SetViewportType((ELevelViewportType)i);
+                    ActiveViewport->SetViewportType((ELevelViewportType::LVT_Perspective));
 
                 }
 
