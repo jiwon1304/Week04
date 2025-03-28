@@ -129,6 +129,10 @@ namespace OBJ
 
         FVector BoundingBoxMin;
         FVector BoundingBoxMax;
+
+        // for cullings
+        float OccluderRadius;
+        float OccludeeRadius;
     };
 }
 

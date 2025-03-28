@@ -5,6 +5,7 @@
 
 #define _TCHAR_DEFINED
 #include <d3d11.h>
+#include <array>
 #include "EngineBaseTypes.h"
 #include "Define.h"
 #include "Container/Map.h"
@@ -20,6 +21,13 @@ class FEditorViewportClient;
 class UBillboardComponent;
 class UStaticMeshComponent;
 class UGizmoBaseComponent;
+
+// sorting
+constexpr float OCCLUSION_DISTANCE_DIV = 10.0f;  // 적절한 초기값으로 초기화
+constexpr int OCCLUSION_DISTANCE_BIN_NUM = 100/ OCCLUSION_DISTANCE_DIV+2;  // +1 : 나눗셈 나머지 , +2 넘어가는것들
+constexpr size_t OcclusionBufferSizeWidth = 256;
+constexpr size_t OcclusionBufferSizeHeight = 256;
+
 class FRenderer 
 {
 
@@ -186,5 +194,20 @@ public:
 private:
     std::shared_ptr<FEditorViewportClient> ActiveViewport;
     UWorld* World = nullptr;
+
+
+
+
+
+private:
+    std::array<TArray<UStaticMeshComponent*>, OCCLUSION_DISTANCE_BIN_NUM> SortedMeshes;
+    void SortMeshRoughly();
+    //std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> ProcessChunk(TObjectIterator<UStaticMeshComponent> startIter, size_t endIdx);
+    //void ProcessMeshesInParallel();
+
+
+    TArray<UStaticMeshComponent*> DisOccludedMeshes;
+    void OcclusionCulling();
+    std::array<uint32_t, OcclusionBufferSizeWidth/sizeof(uint32_t) * OcclusionBufferSizeHeight / sizeof(uint32_t)> OcclusionBuffer;
 };
 

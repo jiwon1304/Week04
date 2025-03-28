@@ -376,7 +376,8 @@ struct FLoaderOBJ
 
         // Calculate StaticMesh BoundingBox
         ComputeBoundingBox(OutStaticMesh.Vertices, OutStaticMesh.BoundingBoxMin, OutStaticMesh.BoundingBoxMax);
-        
+        ComputeOcclusion(OutStaticMesh.Vertices, OutStaticMesh.OccluderRadius, OutStaticMesh.OccludeeRadius);
+
         return true;
     }
 
@@ -416,6 +417,21 @@ struct FLoaderOBJ
 
         OutMinVector = MinVector;
         OutMaxVector = MaxVector;
+    }
+    static void ComputeOcclusion(const TArray<FVertexSimple>& InVertices, float& OutOccluder, float& OutOccludee)
+    {
+        float MinRadiusSq = FLT_MAX;
+        float MaxRadiusSq = FLT_MIN;
+
+        for (int32 i = 0; i < InVertices.Num(); i++)
+        {
+            float RadiusSq = InVertices[i].x* InVertices[i].x + InVertices[i].y * InVertices[i].y + InVertices[i].z * InVertices[i].z;
+            MinRadiusSq = RadiusSq < MinRadiusSq ? RadiusSq : MinRadiusSq;
+            MaxRadiusSq = RadiusSq > MaxRadiusSq ? RadiusSq : MaxRadiusSq;
+        }
+
+        OutOccluder = sqrtf(MaxRadiusSq);
+        OutOccludee = sqrtf(MinRadiusSq);
     }
 };
 
@@ -570,6 +586,10 @@ public:
         File.write(reinterpret_cast<const char*>(&StaticMesh.BoundingBoxMin), sizeof(FVector));
         File.write(reinterpret_cast<const char*>(&StaticMesh.BoundingBoxMax), sizeof(FVector));
         
+        // Occlusion Sphere
+        File.write(reinterpret_cast<const char*>(&StaticMesh.OccluderRadius), sizeof(float));
+        File.write(reinterpret_cast<const char*>(&StaticMesh.OccludeeRadius), sizeof(float));
+        
         File.close();
         return true;
     }
@@ -672,6 +692,10 @@ public:
         File.read(reinterpret_cast<char*>(&OutStaticMesh.BoundingBoxMin), sizeof(FVector));
         File.read(reinterpret_cast<char*>(&OutStaticMesh.BoundingBoxMax), sizeof(FVector));
         
+        // Occlusion Sphere
+        File.read(reinterpret_cast<char*>(&OutStaticMesh.OccluderRadius), sizeof(float));
+        File.read(reinterpret_cast<char*>(&OutStaticMesh.OccludeeRadius), sizeof(float));
+
         File.close();
 
         // Texture Load

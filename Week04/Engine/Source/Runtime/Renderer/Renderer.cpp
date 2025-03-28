@@ -21,6 +21,11 @@
 #include "UObject/UObjectIterator.h"
 #include "Components/SkySphereComponent.h"
 
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <future>
+
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
     Graphics = graphics;
@@ -992,7 +997,14 @@ void FRenderer::RenderBatch(
 
 void FRenderer::PrepareRender()
 {
-    for (const auto iter : TObjectRange<USceneComponent>())
+    SortMeshRoughly();
+
+    //ProcessMeshesInParallel();
+
+
+    //for (const auto iter : TObjectRange<USceneComponent>())
+    for(int i =0;i< OCCLUSION_DISTANCE_BIN_NUM-1;i++)
+    for(const auto iter : SortedMeshes[i])
     {
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
         {
@@ -1117,6 +1129,8 @@ void FRenderer::RenderStaticMeshes()
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
     }
     */
+
+
     
     for (auto& [Material, DataArray] : MaterialMeshMap)
     {
@@ -1282,3 +1296,159 @@ bool FRenderer::SubmeshCmp(const FMeshData& a, const FMeshData& b)
     // 스태틱메시를 기준으로 정렬하여 버텍스 버퍼와 인덱스 버퍼를 바꾸는 횟수를 최소화하기 위함
     return a.StaticMeshComp < b.StaticMeshComp;
 }
+
+
+// 수정필요 : 받아오는 array / map이 없음.
+
+void FRenderer::SortMeshRoughly()
+{
+    //std::array<UStaticMeshComponent*, DISTANCE_BIN_NUM> bins;
+    for (auto& bin : SortedMeshes)
+    {
+        bin.Empty();
+    }
+    for (UStaticMeshComponent* MeshComp : TObjectRange<UStaticMeshComponent>()) {
+        FVector Disp = MeshComp->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
+        float dist = Disp.Magnitude();
+        int binIndex = std::min(int(dist / OCCLUSION_DISTANCE_DIV), OCCLUSION_DISTANCE_BIN_NUM - 1);
+        SortedMeshes[binIndex].Add(MeshComp);
+    }
+}
+
+void FRenderer::OcclusionCulling()
+{
+    //GEngineLoop.GetWorld()->GetCamera()->
+    //for (int i = 0; i < OCCLUSION_DISTANCE_BIN_NUM; i++)
+    //{
+    //    for (auto& it : SortedMeshes[i])
+    //    {
+    //        it
+    //    }
+    //    SortedMeshes[i].
+    //}
+
+
+
+
+}
+
+
+//std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> FRenderer::ProcessChunk(int startIdx, int endIdx) {
+//    std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> TempBin;
+//    for (int i = startIdx; i < endIdx; ++i) {
+//        //std::array < TArray<UStaticMeshComponent*>,10> sorted
+//        const MeshMaterialPair& Mesh = SortedStaticMeshObjs[i];
+//
+//        FVector Disp = Mesh.mesh->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
+//        float dist = Disp.Magnitude();
+//        int binIndex = std::min(int(dist / DISTANCE_DIV), DISTANCE_BIN_NUM - 1);
+//
+//        TempBin[binIndex].Add(Mesh.mesh);
+//    }
+//
+//    return TempBin;
+//}
+//
+//// race condition 개선 필요. 현재 single thread보다 느림
+//// bin을 각각 만들고 끝나고 합쳐야함.
+//void FRenderer::ProcessMeshesInParallel() {
+//
+//    const size_t totalMeshes = SortedStaticMeshObjs.size();
+//    const size_t numThreads = std::thread::hardware_concurrency();  // or a set number of threads
+//    const size_t chunkSize = totalMeshes / numThreads;
+//
+//    std::vector<std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM>> futures;
+//      // Bins to store results
+//    std::atomic<int> idx(0); // For thread-safe index incrementing
+//
+//    // Create and launch threads
+//    for (size_t i = 0; i < numThreads; ++i) {
+//        size_t startIdx = i * chunkSize;
+//        size_t endIdx = (i == numThreads - 1) ? totalMeshes : startIdx + chunkSize;
+//
+//        threads.push_back(std::thread(&FRenderer::ProcessChunk, this, startIdx, endIdx));
+//    }
+//
+//    // Join all threads
+//    for (auto& t : threads) {
+//        t.join();
+//    }
+//}
+
+
+//
+//// Modified ProcessChunk function
+//std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> FRenderer::ProcessChunk(TObjectIterator<UStaticMeshComponent> startIter, size_t endIdx) 
+//{
+//    std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> TempBin;
+//    
+//    //for(auto it = std::iterator < TArray<UStaticMeshComponent*>(TempBin); )
+//    //for(auto it = TObjectIterator<UStaticMeshComponent>() + startIdx; it)
+//    for (int i = 0; i < endIdx; ++i)
+//    {
+//        startIter->GetStaticMesh();
+//        //const MeshMaterialPair& Mesh = SortedStaticMeshObjs[i];
+//
+//        ////FVector Disp = Mesh.mesh->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
+//        //FVector Disp = Mesh.mesh->GetWorldLocation();
+//        //FVector a = ActiveViewport->ViewTransformPerspective.GetLocation();
+//        //float dist = Disp.Magnitude();
+//        //int binIndex = std::min(int(dist / DISTANCE_DIV), DISTANCE_BIN_NUM - 1);
+//
+//        //TempBin[binIndex].Add(Mesh.mesh);
+//    }
+//
+//    //for (int i = startIdx; i < endIdx; ++i) {
+//    //}
+//
+//    return TempBin;
+//}
+//
+//// Modified ProcessMeshesInParallel function using futures
+//void FRenderer::ProcessMeshesInParallel() {
+//
+//    size_t totalMeshes = 0;
+//    for (const auto it : TObjectRange<UStaticMeshComponent>())
+//    {
+//        ++totalMeshes;
+//    }
+//
+//    //const size_t totalMeshes = SortedStaticMeshObjs.size();
+//    const size_t numThreads = std::thread::hardware_concurrency();  // Or you can set a fixed number of threads
+//    const size_t chunkSize = totalMeshes / numThreads;
+//
+//    std::vector<std::future<std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM>>> futures;
+//
+//    size_t startIdx = 0;
+//    TObjectIterator<UStaticMeshComponent*> It;
+//    // Create and launch tasks using std::async (returns a future)
+//    for (size_t i = 0; i < numThreads; ++i) {
+//        //for(; It != TObjectIterator<UStaticMeshComponent*>(TObjectIterator<UStaticMeshComponent*>::EndTag, It); ++It)
+//        {
+//            ++startIdx;
+//            if (startIdx%chunkSize == 0)
+//            {
+//                size_t endIdx;
+//                // Launch the task asynchronously and store the future
+//                //futures.push_back(std::async(std::launch::async, &FRenderer::ProcessChunk, this, It, chunkSize));
+//
+//
+//            }
+//        }
+//    }
+//
+//    // Merge the results from all futures (thread results)
+//    //std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> SortedMeshes;
+//    SortedMeshes.empty();
+//    for (auto& future : futures) {
+//        // Get the result from each future (this blocks until the result is ready)
+//        auto tempBin = future.get();
+//
+//        // Merge tempBin into the global SortedMeshes
+//        for (size_t i = 0; i < DISTANCE_BIN_NUM; ++i) {
+//            SortedMeshes[i].Append(tempBin[i]);
+//        }
+//    }
+//
+//    // Now SortedMeshes contains the merged results from all threads
+//}

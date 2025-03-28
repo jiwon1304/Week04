@@ -88,6 +88,7 @@ SceneData FSceneMgr::ParseSceneData(const FString& jsonStr)
                 value["Rotation"].get<std::vector<float>>()[1],
                 value["Rotation"].get<std::vector<float>>()[2]));
             if (value.contains("Scale")) sceneComp->SetScale(FVector(value["Scale"].get<std::vector<float>>()[0],
+
                 value["Scale"].get<std::vector<float>>()[1],
                 value["Scale"].get<std::vector<float>>()[2]));
             if (value.contains("Type")) {
