@@ -344,7 +344,7 @@ void ControlEditorPanel::CreateFlagButton() const
             bool bIsSelected = ((int)ActiveViewport->GetViewportType() == i);
             if (ImGui::Selectable(ViewTypeNames[i], bIsSelected))
             {
-                ActiveViewport->SetViewportType((ELevelViewportType)i);
+                ActiveViewport->SetViewportType(ELevelViewportType::LVT_Perspective);
             }
 
             if (bIsSelected)
