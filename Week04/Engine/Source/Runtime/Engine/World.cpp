@@ -18,10 +18,21 @@ void UWorld::Initialize()
     FManagerOBJ::CreateStaticMesh("Assets/apple_mid.obj");
 
     FManagerOBJ::CreateStaticMesh("Assets/bitten_apple_mid.obj");
-    AActor* SpawnedActor = SpawnActor<AActor>();
-    UStaticMeshComponent* TestApple = SpawnedActor->AddComponent<UStaticMeshComponent>();
-    TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"bitten_apple_mid.obj"));
-    TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+
+    for (int i = 0; i < 50; ++i)
+    {
+        for (int j = 0; j < 50; ++j)
+        {
+            for (int k = 0; k < 20; ++k)
+            {
+                AActor* SpawnedActor = SpawnActor<AActor>();
+                UStaticMeshComponent* TestApple = SpawnedActor->AddComponent<UStaticMeshComponent>();
+                // TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"bitten_apple_mid.obj"));
+                TestApple->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+                
+            }
+        }
+    }
 }
 
 void UWorld::CreateBaseObject()

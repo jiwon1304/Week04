@@ -112,6 +112,8 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     LevelEditor = new SLevelEditor();
     LevelEditor->Initialize();
 
+    Renderer.SetViewport(LevelEditor->GetActiveViewportClient());
+
     GWorld = new UWorld;
     GWorld->Initialize();
 
@@ -126,6 +128,7 @@ void FEngineLoop::Render()
     GraphicDevice.Prepare();
     Renderer.PrepareRender();
     Renderer.Render(GetWorld(), LevelEditor->GetActiveViewportClient());
+    
     /*if (LevelEditor->IsMultiViewport())
     {
         std::shared_ptr<FEditorViewportClient> viewportClient = GetLevelEditor()->GetActiveViewportClient();
@@ -199,6 +202,7 @@ float FEngineLoop::GetAspectRatio(IDXGISwapChain* swapChain) const
 
 void FEngineLoop::Input()
 {
+    // W04
     /*if (GetAsyncKeyState('M') & 0x8000)
     {
         if (!bTestInput)

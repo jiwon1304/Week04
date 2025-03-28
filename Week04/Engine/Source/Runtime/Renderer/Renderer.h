@@ -78,7 +78,7 @@ public:
 
     // update
     void UpdateLightBuffer() const;
-    void UpdateConstant(const FMatrix& MVP, const FMatrix& NormalMatrix, FVector4 UUIDColor, bool IsSelected) const;
+    void UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const;
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;
@@ -137,6 +137,7 @@ public: // line shader
     void UpdateConesBuffer(ID3D11Buffer* pConeBuffer, const TArray<FCone>& Cones, int numCones) const;
 
     //Render Pass Demo
+    void SetViewport(std::shared_ptr<FEditorViewportClient> ActiveViewport);
     void PrepareRender();
     void ClearRenderArr();
     void Render(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport);

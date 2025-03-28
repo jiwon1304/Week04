@@ -32,6 +32,11 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateLitUnlitBuffer();
 }
 
+void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> ActiveViewport)
+{
+    Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport());
+}
+
 void FRenderer::Release()
 {
     ReleaseShader();
@@ -56,7 +61,6 @@ void FRenderer::CreateShader()
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 28, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 40, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"MATERIAL_INDEX", 0, DXGI_FORMAT_R32_UINT, 0, 48, D3D11_INPUT_PER_VERTEX_DATA, 0}
     };
 
     Graphics->Device->CreateInputLayout(
@@ -431,7 +435,7 @@ void FRenderer::UpdateLightBuffer() const
     Graphics->DeviceContext->Unmap(LightingBuffer, 0);
 }
 
-void FRenderer::UpdateConstant(const FMatrix& MVP, const FMatrix& NormalMatrix, FVector4 UUIDColor, bool IsSelected) const
+void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const
 {
     if (ConstantBuffer)
     {
@@ -1013,11 +1017,11 @@ void FRenderer::ClearRenderArr()
 
 void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
 {
-    Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport());
+    // Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행
     
-    Graphics->ChangeRasterizer(ActiveViewport->GetViewMode());
+    Graphics->ChangeRasterizer(VMI_Lit);
     
-    ChangeViewMode(ActiveViewport->GetViewMode());
+    // ChangeViewMode(ActiveViewport->GetViewMode()); // W04
     
     // UpdateLightBuffer(); // W04
 
@@ -1045,6 +1049,11 @@ void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewpor
     PrepareShader();
     for (UStaticMeshComponent* StaticMeshComp : StaticMeshObjs)
     {
+        if (!StaticMeshComp->GetStaticMesh()) continue;
+
+        OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
+
+        if (renderData == nullptr) continue;
         FMatrix Model = JungleMath::CreateModelMatrix(
             StaticMeshComp->GetWorldLocation(),
             StaticMeshComp->GetWorldRotation(),
@@ -1052,39 +1061,13 @@ void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewpor
         );
         // 최종 MVP 행렬
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
-        // 노말 회전시 필요 행렬
-        FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
         FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
         if (World->GetSelectedActor() == StaticMeshComp->GetOwner())
         {
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
+            UpdateConstant(MVP, UUIDColor, true);
         }
         else
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
-
-        if (USkySphereComponent* skysphere = Cast<USkySphereComponent>(StaticMeshComp))
-        {
-            UpdateTextureConstant(skysphere->UOffset, skysphere->VOffset);
-        }
-        else
-        {
-            UpdateTextureConstant(0, 0);
-        }
-
-        if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_AABB))
-        {
-            UPrimitiveBatch::GetInstance().RenderAABB(
-                StaticMeshComp->GetBoundingBox(),
-                StaticMeshComp->GetWorldLocation(),
-                Model
-            );
-        }
-                
-    
-        if (!StaticMeshComp->GetStaticMesh()) continue;
-
-        OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
-        if (renderData == nullptr) continue;
+            UpdateConstant(MVP, UUIDColor, false);
 
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
     }
@@ -1104,8 +1087,6 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
 
     //  fill solid,  Wirframe 에서도 제대로 렌더링되기 위함
     Graphics->DeviceContext->RSSetState(FEngineLoop::GraphicDevice.RasterizerStateSOLID);
-
-    // TODO: W04 - flag 버퍼의 IsLit을 IsGizmo로 변경하여 픽셀 쉐이더에서 Diffuse 컬러 사용하게
     
     for (auto GizmoComp : GizmoObjs)
     {
@@ -1129,15 +1110,14 @@ void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorV
             GizmoComp->GetWorldRotation(),
             GizmoComp->GetWorldScale()
         );
-        FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
         FVector4 UUIDColor = GizmoComp->EncodeUUID() / 255.0f;
 
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
 
         if (GizmoComp == World->GetPickingGizmo())
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
+            UpdateConstant(MVP, UUIDColor, true);
         else
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
+            UpdateConstant(MVP, UUIDColor, false);
 
         if (!GizmoComp->GetStaticMesh()) continue;
 
@@ -1167,12 +1147,11 @@ void FRenderer::RenderBillboards(UWorld* World, std::shared_ptr<FEditorViewportC
 
         // 최종 MVP 행렬
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
-        FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
         FVector4 UUIDColor = BillboardComp->EncodeUUID() / 255.0f;
         if (BillboardComp == World->GetPickingGizmo())
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
+            UpdateConstant(MVP, UUIDColor, true);
         else
-            UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
+            UpdateConstant(MVP, UUIDColor, false);
 
         if (UParticleSubUVComp* SubUVParticle = Cast<UParticleSubUVComp>(BillboardComp))
         {
