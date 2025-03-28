@@ -18,6 +18,8 @@
 
 #include "UserInterface/Console.h"
 
+class UStaticMeshComponent;
+
 struct FVertexSimple
 {
     float x, y, z;    // Position
@@ -270,6 +272,7 @@ struct FPrimitiveCounts
 	int ConeCount; 
 	int pad1;
 };
+
 struct FLighting
 {
 	float lightDirX, lightDirY, lightDirZ; // 조명 방향
@@ -284,18 +287,11 @@ struct FLighting
 
 struct FMaterialConstants {
     FVector DiffuseColor;
-    float TransparencyScalar;
-    FVector AmbientColor;
-    float DensityScalar;
-    FVector SpecularColor;
-    float SpecularScalar;
-    FVector EmmisiveColor;
     float MaterialPad0;
 };
 
 struct FConstants {
-    FMatrix MVP;      // 모델
-    FMatrix ModelMatrixInverseTranspose; // normal 변환을 위한 행렬
+    FMatrix MVP;
     FVector4 UUIDColor;
     bool IsSelected;
     FVector pad;
@@ -315,4 +311,10 @@ struct FTextureConstants {
     float VOffset;
     float pad0;
     float pad1;
+};
+
+struct MeshMaterialPair {
+    uint32 meshIndex;
+    UStaticMeshComponent* mesh;
+    UMaterial* material;
 };

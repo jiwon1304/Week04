@@ -25,10 +25,15 @@ AEditorPlayer::AEditorPlayer()
 void AEditorPlayer::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-    Input();
+    Input(DeltaTime);
 }
 
-void AEditorPlayer::Input()
+void AEditorPlayer::SetHWND(HWND InHWnd)
+{
+    hWnd = InHWnd;
+}
+
+void AEditorPlayer::Input(float DeltaTime)
 {
     if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
     {
@@ -39,6 +44,9 @@ void AEditorPlayer::Input()
             POINT mousePos;
             GetCursorPos(&mousePos);
             GetCursorPos(&m_LastMousePos);
+
+            ScreenToClient(hWnd, &mousePos);
+            ScreenToClient(hWnd, &m_LastMousePos);
 
             const TStatId temp;
             FScopeCycleCounter pickCounter = FScopeCycleCounter(temp);
@@ -66,7 +74,7 @@ void AEditorPlayer::Input()
         }
         else
         {
-            PickedObjControl();
+            PickedObjControl(DeltaTime);
         }
     }
     else
@@ -352,7 +360,7 @@ int AEditorPlayer::RayIntersectsObject(const FVector& pickPosition, USceneCompon
     }
 }
 
-void AEditorPlayer::PickedObjControl()
+void AEditorPlayer::PickedObjControl(float DeltaTime)
 {
     if (GetWorld()->GetSelectedActor() && GetWorld()->GetPickingGizmo())
     {

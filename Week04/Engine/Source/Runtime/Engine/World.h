@@ -21,12 +21,12 @@ class UWorld : public UObject
 public:
     UWorld() = default;
 
-    void Initialize();
-    void CreateBaseObject();
+    void Initialize(HWND hWnd);
+    void CreateBaseObject(HWND hWnd);
     void ReleaseBaseObject();
     void Tick(float DeltaTime);
     void Release();
-    void LoadSceneData(SceneData Scene);
+    void LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClient> ViewportClient);
 
     /**
      * World에 Actor를 Spawn합니다.
@@ -56,7 +56,7 @@ private:
     AEditorPlayer* EditorPlayer = nullptr;
 
 public:
-    UObject* worldGizmo = nullptr;
+    // UObject* worldGizmo = nullptr; // W04
 
     const TSet<AActor*>& GetActors() const { return ActorsArray; }
 
@@ -67,12 +67,9 @@ public:
 
     // EditorManager 같은데로 보내기
     AActor* GetSelectedActor() const { return SelectedActor; }
-    void SetPickedActor(AActor* InActor)
-    {
-        SelectedActor = InActor;
-    }
+    void SetPickedActor(AActor* InActor);
 
-    UObject* GetWorldGizmo() const { return worldGizmo; }
+    // UObject* GetWorldGizmo() const { return worldGizmo; } // W04
     USceneComponent* GetPickingGizmo() const { return pickingGizmo; }
     void SetPickingGizmo(UObject* Object);
 };

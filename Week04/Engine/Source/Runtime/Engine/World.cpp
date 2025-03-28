@@ -8,58 +8,33 @@
 #include "Engine/Source/Editor/UnrealEd/SceneMgr.h"
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
-#include "Components/SkySphereComponent.h"
+#include "UnrealEd/EditorViewportClient.h"
 
 
-void UWorld::Initialize()
+void UWorld::Initialize(HWND hWnd)
 {
-    // TODO: Load Scene
-    CreateBaseObject();
-    //SpawnObject(OBJ_CUBE);
-    //FManagerOBJ::CreateStaticMesh("Assets/Dodge/Dodge.obj");
+    CreateBaseObject(hWnd);
 
-    //FManagerOBJ::CreateStaticMesh("Assets/SkySphere.obj");
-
-    //USkySphereComponent* skySphere = SpawnedActor->AddComponent<USkySphereComponent>();
-    //skySphere->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"SkySphere.obj"));
-    //skySphere->GetStaticMesh()->GetMaterials()[0]->Material->SetDiffuse(FVector((float)32/255, (float)171/255, (float)191/255));
-
-    /*
-
-    for (int i = 0; i < 100; i++)
-    {
-        for (int j = 0; j < 100; j++)
-        {
-            for (int k = 0; k < 5; k++)
-            {
-                AActor* SpawnedActor = SpawnActor<AActor>();
-                UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
-                AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
-                SpawnedActor->SetActorLocation(FVector(i, j, k));
-            }
-        }
-    }
-    */
-
-    //FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
-    //AActor* SpawnedActor = SpawnActor<AActor>();
-    //UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
-
-    //Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
-    //SpawnedActor->AddExternalComponent(Mesh);
+#ifdef _DEBUG
+    FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+    AActor* SpawnedActor = SpawnActor<AActor>();
+    UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+    Mesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+#endif
 }
 
-void UWorld::CreateBaseObject()
+void UWorld::CreateBaseObject(HWND hWnd)
 {
     if (EditorPlayer == nullptr)
     {
-        EditorPlayer = FObjectFactory::ConstructObject<AEditorPlayer>();;
+        EditorPlayer = FObjectFactory::ConstructObject<AEditorPlayer>();
+        EditorPlayer->SetHWND(hWnd);
     }
 
     if (camera == nullptr)
     {
         camera = FObjectFactory::ConstructObject<UCameraComponent>();
-        camera->SetLocation(FVector(8.0f, 8.0f, 8.f));
+        camera->SetLocation(FVector(40.0f, 40.0f, 40.f));
         camera->SetRotation(FVector(0.0f, 45.0f, -135.0f));
     }
 
@@ -77,11 +52,13 @@ void UWorld::ReleaseBaseObject()
         LocalGizmo = nullptr;
     }
 
+    /* W04
     if (worldGizmo)
     {
         delete worldGizmo;
         worldGizmo = nullptr;
     }
+    */
 
     if (camera)
     {
@@ -99,10 +76,11 @@ void UWorld::ReleaseBaseObject()
 
 void UWorld::Tick(float DeltaTime)
 {
-	camera->TickComponent(DeltaTime);
-	EditorPlayer->Tick(DeltaTime);
-	LocalGizmo->Tick(DeltaTime);
+	//camera->TickComponent(DeltaTime); // W04
+	EditorPlayer->Tick(DeltaTime); // TODO: W04 - 최적화 하기
+	// LocalGizmo->Tick(DeltaTime); // TODO: W04 - 기즈모 조작 필요하면 주석 제거
 
+    /* W04
     // SpawnActor()에 의해 Actor가 생성된 경우, 여기서 BeginPlay 호출
     for (AActor* Actor : PendingBeginPlayActors)
     {
@@ -115,7 +93,26 @@ void UWorld::Tick(float DeltaTime)
 	{
 	    Actor->Tick(DeltaTime);
 	}
+	*/
 }
+
+void UWorld::SetPickedActor(AActor* InActor)
+{
+    SelectedActor = InActor;
+
+    // W04 - LocalGizmo의 Tick에서 하던걸 선택시 한번만 하게 변경. 기즈모 조작을 하지 않는다고 가정했기 때문. 
+    LocalGizmo->SetActorLocation(SelectedActor->GetActorLocation());
+    /*
+    if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_LOCAL)
+    {
+        // TODO: 임시로 RootComponent의 정보로 사용
+        SetActorRotation(PickedActor->GetActorRotation());
+    }
+    else if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_WORLD)
+        SetActorRotation(FVector(0.0f, 0.0f, 0.0f));
+    */
+}
+
 
 void UWorld::Release()
 {
@@ -137,25 +134,28 @@ void UWorld::Release()
     GUObjectArray.ProcessPendingDestroyObjects();
 }
 
-void UWorld::LoadSceneData(SceneData Scene)  
+void UWorld::LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClient> ViewportClient)  
 {  
-   // 현재는 UUID까지 로드하지는 않음
-   // camera  
-   this->camera = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);  
+    // 현재는 UUID까지 로드하지는 않음
+    // camera  
+    UCameraComponent* CameraComp = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);
+    ViewportClient->ViewTransformPerspective.SetLocation(CameraComp->GetWorldLocation());
+    ViewportClient->ViewTransformPerspective.SetRotation(CameraComp->GetWorldRotation());
+    ViewportClient->ViewFOV = CameraComp->GetFOV();
+    ViewportClient->nearPlane = CameraComp->GetNearClip();
+    ViewportClient->farPlane = CameraComp->GetFarClip();
    
-   // primitives  
-   for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
-   {  
-       if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
-       {
-           AActor* SpawnedActor = SpawnActor<AActor>();
+    // primitives  
+    for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
+    {  
+        if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
+        {
+            AActor* SpawnedActor = SpawnActor<AActor>();
            
-           Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
-           SpawnedActor->AddExternalComponent(Mesh);
-       }
-   }
-   CreateBaseObject();
-
+            Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
+            SpawnedActor->AddExternalComponent(Mesh);
+        }
+    }
 }
 
 bool UWorld::DestroyActor(AActor* ThisActor)
