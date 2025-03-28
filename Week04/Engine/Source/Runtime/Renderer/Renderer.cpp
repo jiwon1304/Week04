@@ -1049,14 +1049,14 @@ void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewpor
             UpdateTextureConstant(0, 0);
         }
 
-        if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_AABB))
-        {
-            UPrimitiveBatch::GetInstance().RenderAABB(
-                StaticMeshComp->GetBoundingBox(),
-                StaticMeshComp->GetWorldLocation(),
-                Model
-            );
-        }
+        //if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_AABB))
+        //{
+        //    UPrimitiveBatch::GetInstance().RenderAABB(
+        //        StaticMeshComp->GetBoundingBox(),
+        //        StaticMeshComp->GetWorldLocation(),
+        //        Model
+        //    );
+        //}
                 
     
         if (!StaticMeshComp->GetStaticMesh()) continue;
