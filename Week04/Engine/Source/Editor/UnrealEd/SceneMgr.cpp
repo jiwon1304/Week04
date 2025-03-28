@@ -11,6 +11,7 @@
 #include "Components/SkySphereComponent.h"
 #include "Camera/CameraComponent.h"
 #include "UObject/Casts.h"
+#include "Engine/FLoaderOBJ.h"
 
 using json = nlohmann::json;
 
@@ -22,7 +23,7 @@ SceneData FSceneMgr::ParseSceneData(const FString& jsonStr)
         json j = json::parse(*jsonStr);
 
         // 버전과 NextUUID 읽기
-        sceneData.Version = j["Version"].get<int>();
+        //sceneData.Version = j["Version"].get<int>();
         sceneData.NextUUID = j["NextUUID"].get<int>();
 
         // Primitives 처리 (C++14 스타일)
@@ -34,7 +35,20 @@ SceneData FSceneMgr::ParseSceneData(const FString& jsonStr)
             if (value.contains("Type"))
             {
                 const FString TypeName = value["Type"].get<std::string>();
-                if (TypeName == USphereComp::StaticClass()->GetName())
+                if (TypeName == UStaticMeshComponent::StaticClass()->GetName())
+                {
+                    // Mesh File(.obj)를 읽음.
+                    UStaticMeshComponent* Comp = FObjectFactory::ConstructObject<UStaticMeshComponent>();
+                    FString MeshPath = value["ObjStaticMeshAsset"].get<std::string>();
+                    FManagerOBJ::CreateStaticMesh(MeshPath);
+
+                    int32 LastDirectoryIndex = MeshPath.Find(FString("/"), ESearchCase::CaseSensitive, ESearchDir::FromEnd, -1);
+                    FString MeshFileName = MeshPath.SubStr(LastDirectoryIndex + 1);                    
+
+                    Comp->SetStaticMesh(FManagerOBJ::GetStaticMesh(MeshFileName.ToWideString()));
+                    obj = Comp;
+                }
+                else if (TypeName == USphereComp::StaticClass()->GetName())
                 {
                     obj = FObjectFactory::ConstructObject<USphereComp>();
                 }
@@ -146,7 +160,7 @@ std::string FSceneMgr::SerializeSceneData(const SceneData& sceneData)
     json j;
 
     // Version과 NextUUID 저장
-    j["Version"] = sceneData.Version;
+    //j["Version"] = sceneData.Version;
     j["NextUUID"] = sceneData.NextUUID;
 
     // Primitives 처리 (C++17 스타일)

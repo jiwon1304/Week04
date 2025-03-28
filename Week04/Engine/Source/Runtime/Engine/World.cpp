@@ -5,6 +5,7 @@
 #include "Camera/CameraComponent.h"
 #include "LevelEditor/SLevelEditor.h"
 #include "Engine/FLoaderOBJ.h"
+#include "Engine/Source/Editor/UnrealEd/SceneMgr.h"
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "Components/SkySphereComponent.h"
@@ -18,12 +19,29 @@ void UWorld::Initialize()
     //FManagerOBJ::CreateStaticMesh("Assets/Dodge/Dodge.obj");
 
     //FManagerOBJ::CreateStaticMesh("Assets/SkySphere.obj");
-    //AActor* SpawnedActor = SpawnActor<AActor>();
+
     //USkySphereComponent* skySphere = SpawnedActor->AddComponent<USkySphereComponent>();
     //skySphere->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"SkySphere.obj"));
     //skySphere->GetStaticMesh()->GetMaterials()[0]->Material->SetDiffuse(FVector((float)32/255, (float)171/255, (float)191/255));
 
 
+    FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+
+    for (int i = 0; i < 50; i++)
+    {
+        for (int j = 0; j < 50; j++)
+        {
+            for (int k = 0; k < 50; k++)
+            {
+                AActor* SpawnedActor = SpawnActor<AActor>();
+                UStaticMeshComponent* AppleMesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+                AppleMesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+                SpawnedActor->SetActorLocation(FVector(i, j, k));
+            }
+        }
+    }
+
+    //FSceneMgr::LoadSceneFromFile(FString("Default_Simplified.scene"));
 }
 
 void UWorld::CreateBaseObject()
