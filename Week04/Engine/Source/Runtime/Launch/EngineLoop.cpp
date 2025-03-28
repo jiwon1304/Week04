@@ -1,4 +1,6 @@
 #include "EngineLoop.h"
+
+#include "FWindowsPlatformTime.h"
 #include "ImGuiManager.h"
 #include "World.h"
 #include "Camera/CameraComponent.h"
@@ -108,6 +110,9 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     GraphicDevice.Initialize(hWnd);
     Renderer.Initialize(&GraphicDevice);
 
+    UIMgr = new UImGuiManager;
+    UIMgr->Initialize(hWnd, GraphicDevice.Device, GraphicDevice.DeviceContext);
+
     ResourceManager.Initialize(&Renderer, &GraphicDevice);
     LevelEditor = new SLevelEditor();
     LevelEditor->Initialize();
@@ -116,7 +121,7 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     GWorld->Initialize();
 
     LevelEditor->OffMultiViewport();
-
+    
     return 0;
 }
 
@@ -176,6 +181,12 @@ void FEngineLoop::Tick()
         LevelEditor->Tick(elapsedTime);
         Render();
 
+        UIMgr->BeginFrame();
+
+        Console::GetInstance().Draw();
+
+        UIMgr->EndFrame();
+
         // Pending 처리된 오브젝트 제거
         GUObjectArray.ProcessPendingDestroyObjects();
 
@@ -223,6 +234,8 @@ void FEngineLoop::Exit()
     LevelEditor->Release();
     GWorld->Release();
     delete GWorld;
+    UIMgr->Shutdown();
+    delete UIMgr;
     ResourceManager.Release(&Renderer);
     Renderer.Release();
     GraphicDevice.Release();

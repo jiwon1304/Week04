@@ -36,8 +36,15 @@ private:
     ControlMode cMode = CM_TRANSLATION;
     CoordiMode cdMode = CDM_WORLD;
 
+    inline static int TotalPickCount = 0;
+    inline static double accumulatedPickingTime = 0;
+    double curPickingTime = 0;
+
 public:
     void SetMode(ControlMode _Mode) { cMode = _Mode; }
     ControlMode GetControlMode() const { return cMode; }
     CoordiMode GetCoordiMode() const { return cdMode; }
+    uint32 GetTotalPickCount() const { return TotalPickCount; }
+    double GetCurPickingTime() const { return curPickingTime; }
+    double GetAccumulatedPickingTime() const { return accumulatedPickingTime; }
 };
