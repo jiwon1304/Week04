@@ -1,11 +1,16 @@
 // MatrixBuffer: 변환 행렬 관리
 cbuffer MatrixConstants : register(b0)
 {
-    row_major float4x4 MVP;
+    row_major float4x4 Model;
     float4 UUID;
     bool isSelected;
     float3 MatrixPad0;
 };
+
+cbuffer ViewProjectionConstants : register(b1)
+{
+    row_major float4x4 ViewProjection;
+}
 
 struct VS_INPUT
 {
@@ -25,9 +30,8 @@ struct PS_INPUT
 PS_INPUT mainVS(VS_INPUT input)
 {
     PS_INPUT output;
-    
     // 위치 변환
-    output.position = mul(input.position, MVP);
+    output.position = mul(mul(input.position, Model), ViewProjection);
     output.color = input.color;
     if (isSelected)
         output.color *= 0.5;

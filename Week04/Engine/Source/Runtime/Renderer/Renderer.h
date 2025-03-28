@@ -34,7 +34,8 @@ public:
     ID3D11Buffer* FlagBuffer = nullptr;
     ID3D11Buffer* MaterialConstantBuffer = nullptr;
     ID3D11Buffer* SubMeshConstantBuffer = nullptr;
-    ID3D11Buffer* TextureConstantBufer = nullptr;
+    ID3D11Buffer* TextureConstantBuffer = nullptr;
+    ID3D11Buffer* ViewProjectionConstantBuffer = nullptr;
 
     FLighting lightingData;
 
@@ -78,12 +79,13 @@ public:
 
     // update
     void UpdateLightBuffer() const;
-    void UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const;
+    void UpdateConstant(const FMatrix& Model, FVector4 UUIDColor, bool IsSelected) const;
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;
     void UpdateSubMeshConstant(bool isSelected) const;
     void UpdateTextureConstant(float UOffset, float VOffset);
+    void UpdateViewProjectionConstantBuffer(const FMatrix& viewProjectionMatrix) const;
 
 public://텍스쳐용 기능 추가
     ID3D11VertexShader* VertexTextureShader = nullptr;

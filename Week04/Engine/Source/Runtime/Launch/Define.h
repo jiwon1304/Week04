@@ -291,7 +291,7 @@ struct FMaterialConstants {
 };
 
 struct FConstants {
-    FMatrix MVP;
+    FMatrix Model;
     FVector4 UUIDColor;
     bool IsSelected;
     FVector pad;
@@ -311,6 +311,11 @@ struct FTextureConstants {
     float VOffset;
     float pad0;
     float pad1;
+};
+
+struct FViewProjectionConstants
+{
+    FMatrix ViewProjectionMatrix;
 };
 
 struct MeshMaterialPair {

@@ -111,6 +111,7 @@ void FRenderer::PrepareShader() const
     if (ConstantBuffer)
     {
         Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &ViewProjectionConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(0, 1, &ConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
         // Graphics->DeviceContext->PSSetConstantBuffers(2, 1, &LightingBuffer);
@@ -364,7 +365,10 @@ void FRenderer::CreateConstantBuffer()
     Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &SubMeshConstantBuffer);
 
     constantbufferdesc.ByteWidth = sizeof(FTextureConstants) + 0xf & 0xfffffff0;
-    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &TextureConstantBufer);
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &TextureConstantBuffer);
+    
+    constantbufferdesc.ByteWidth = sizeof(FViewProjectionConstants) + 0xf & 0xfffffff0;
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &ViewProjectionConstantBuffer);
 }
 
 void FRenderer::CreateLightingBuffer()
@@ -419,10 +423,16 @@ void FRenderer::ReleaseConstantBuffer()
         SubMeshConstantBuffer = nullptr;
     }
 
-    if (TextureConstantBufer)
+    if (TextureConstantBuffer)
     {
-        TextureConstantBufer->Release();
-        TextureConstantBufer = nullptr;
+        TextureConstantBuffer->Release();
+        TextureConstantBuffer = nullptr;
+    }
+
+    if (ViewProjectionConstantBuffer)
+    {
+        ViewProjectionConstantBuffer->Release();
+        ViewProjectionConstantBuffer = nullptr;
     }
 }
 
@@ -444,7 +454,7 @@ void FRenderer::UpdateLightBuffer() const
     Graphics->DeviceContext->Unmap(LightingBuffer, 0);
 }
 
-void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const
+void FRenderer::UpdateConstant(const FMatrix& Model, FVector4 UUIDColor, bool IsSelected) const
 {
     if (ConstantBuffer)
     {
@@ -453,7 +463,7 @@ void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSe
         Graphics->DeviceContext->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
         {
             FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
-            constants->MVP = MVP;
+            constants->Model = Model;
             constants->UUIDColor = UUIDColor;
             constants->IsSelected = IsSelected;
         }
@@ -523,9 +533,9 @@ void FRenderer::UpdateIsGizmoConstant(int IsGizmo) const
 void FRenderer::UpdateSubMeshConstant(bool isSelected) const
 {
     if (SubMeshConstantBuffer) {
-        D3D11_MAPPED_SUBRESOURCE constantbufferMSR; // GPU �� �޸� �ּ� ����
+        D3D11_MAPPED_SUBRESOURCE constantbufferMSR;
         Graphics->DeviceContext->Map(SubMeshConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
-        FSubMeshConstants* constants = (FSubMeshConstants*)constantbufferMSR.pData; //GPU �޸� ���� ����
+        FSubMeshConstants* constants = (FSubMeshConstants*)constantbufferMSR.pData;
         {
             constants->isSelectedSubMesh = isSelected;
         }
@@ -535,17 +545,31 @@ void FRenderer::UpdateSubMeshConstant(bool isSelected) const
 
 void FRenderer::UpdateTextureConstant(float UOffset, float VOffset)
 {
-    if (TextureConstantBufer) {
-        D3D11_MAPPED_SUBRESOURCE constantbufferMSR; // GPU �� �޸� �ּ� ����
-        Graphics->DeviceContext->Map(TextureConstantBufer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
-        FTextureConstants* constants = (FTextureConstants*)constantbufferMSR.pData; //GPU �޸� ���� ����
+    if (TextureConstantBuffer) {
+        D3D11_MAPPED_SUBRESOURCE constantbufferMSR;
+        Graphics->DeviceContext->Map(TextureConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
+        FTextureConstants* constants = (FTextureConstants*)constantbufferMSR.pData;
         {
             constants->UOffset = UOffset;
             constants->VOffset = VOffset;
         }
-        Graphics->DeviceContext->Unmap(TextureConstantBufer, 0);
+        Graphics->DeviceContext->Unmap(TextureConstantBuffer, 0);
     }
 }
+
+void FRenderer::UpdateViewProjectionConstantBuffer(const FMatrix& viewProjectionMatrix) const
+{
+    if (ViewProjectionConstantBuffer) {
+        D3D11_MAPPED_SUBRESOURCE constantbufferMSR;
+        Graphics->DeviceContext->Map(ViewProjectionConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
+        FViewProjectionConstants* constants = (FViewProjectionConstants*)constantbufferMSR.pData;
+        {
+            constants->ViewProjectionMatrix = viewProjectionMatrix;
+        }
+        Graphics->DeviceContext->Unmap(ViewProjectionConstantBuffer, 0);
+    }
+}
+
 
 void FRenderer::CreateTextureShader()
 {
@@ -1083,9 +1107,8 @@ void FRenderer::RenderStaticMeshes()
             StaticMeshComp->GetWorldScale()
         );
         // 최종 MVP 행렬
-        FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
         FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
-        UpdateConstant(MVP, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
+        UpdateConstant(Model, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
         
         if (prevMaterial != data.material)
         {
@@ -1147,10 +1170,7 @@ void FRenderer::RenderGizmos()
 
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
 
-        if (GizmoComp == World->GetPickingGizmo())
-            UpdateConstant(MVP, UUIDColor, true);
-        else
-            UpdateConstant(MVP, UUIDColor, false);
+        UpdateConstant(MVP, UUIDColor, GizmoComp == World->GetPickingGizmo());
 
         RenderPrimitive(renderData, GizmoComp->GetStaticMesh()->GetMaterials(), GizmoComp->GetOverrideMaterials());
     }
@@ -1174,10 +1194,8 @@ void FRenderer::RenderBillboards()
         // 최종 MVP 행렬
         FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
         FVector4 UUIDColor = BillboardComp->EncodeUUID() / 255.0f;
-        if (BillboardComp == World->GetPickingGizmo())
-            UpdateConstant(MVP, UUIDColor, true);
-        else
-            UpdateConstant(MVP, UUIDColor, false);
+
+        UpdateConstant(MVP, UUIDColor, BillboardComp == World->GetPickingGizmo());
 
         if (UParticleSubUVComp* SubUVParticle = Cast<UParticleSubUVComp>(BillboardComp))
         {

@@ -3,7 +3,7 @@ SamplerState Sampler : register(s0);
 
 cbuffer MatrixConstants : register(b0)
 {
-    row_major float4x4 MVP;
+    row_major float4x4 Model;
     float4 UUID;
     bool isSelected;
     float3 Pad0;

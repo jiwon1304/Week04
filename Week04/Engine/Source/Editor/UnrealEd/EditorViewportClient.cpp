@@ -27,7 +27,6 @@ void FEditorViewportClient::Draw(FViewport* Viewport)
 
 void FEditorViewportClient::Initialize(int32 viewportIndex)
 {
-
     ViewTransformPerspective.SetLocation(FVector(8.0f, 8.0f, 8.f));
     ViewTransformPerspective.SetRotation(FVector(0.0f, 45.0f, -135.0f));
     Viewport = new FViewport(static_cast<EViewScreenLocation>(viewportIndex));
@@ -40,14 +39,13 @@ void FEditorViewportClient::Tick(float DeltaTime)
     Input();
     UpdateViewMatrix();
     UpdateProjectionMatrix();
-
+    FEngineLoop::Renderer.UpdateViewProjectionConstantBuffer(View * Projection);
 }
 
 void FEditorViewportClient::Release()
 {
     if (Viewport)
         delete Viewport;
- 
 }
 
 
