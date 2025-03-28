@@ -95,7 +95,7 @@ FQuat JungleMath::EulerToQuaternion(const FVector& eulerDegrees)
     float pitch = DegToRad(eulerDegrees.y); // Y축 Pitch
     float roll = DegToRad(eulerDegrees.x);  // X축 Roll
 
-    /*float halfYaw = yaw * 0.5f;
+    float halfYaw = yaw * 0.5f;
     float halfPitch = pitch * 0.5f;
     float halfRoll = roll * 0.5f;
 
@@ -112,12 +112,9 @@ FQuat JungleMath::EulerToQuaternion(const FVector& eulerDegrees)
     quat.y = cosYaw * sinPitch * cosRoll + sinYaw * cosPitch * sinRoll;
     quat.z = sinYaw * cosPitch * cosRoll - cosYaw * sinPitch * sinRoll;
 
-    quat.Normalize();*/
+    quat.Normalize();
 
-    FQuat qYaw = FQuat(FVector(0, 0, 1), yaw);
-    FQuat qPitch = FQuat(FVector(0, 1, 0), pitch);
-    FQuat qRoll = FQuat(FVector(1, 0, 0), roll);
-    return qYaw * qPitch * qRoll;
+    return quat;
 }
 FVector JungleMath::QuaternionToEuler(const FQuat& quat)
 {
