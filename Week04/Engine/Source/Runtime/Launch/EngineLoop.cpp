@@ -32,14 +32,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
             {
                 FEngineLoop::GraphicDevice.OnResize(hWnd);
             }
-            for (int i = 0; i < 4; i++)
+            if (GEngineLoop.GetLevelEditor())
             {
-                if (GEngineLoop.GetLevelEditor())
+                if (GEngineLoop.GetLevelEditor()->GetViewports()[0])
                 {
-                    if (GEngineLoop.GetLevelEditor()->GetViewports()[i])
-                    {
-                        GEngineLoop.GetLevelEditor()->GetViewports()[i]->ResizeViewport(FEngineLoop::GraphicDevice.SwapchainDesc);
-                    }
+                    GEngineLoop.GetLevelEditor()->GetViewports()[0]->ResizeViewport(FEngineLoop::GraphicDevice.SwapchainDesc);
                 }
             }
         }
@@ -118,6 +115,8 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     GWorld = new UWorld;
     GWorld->Initialize();
 
+    LevelEditor->OffMultiViewport();
+
     return 0;
 }
 
@@ -125,10 +124,12 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 void FEngineLoop::Render()
 {
     GraphicDevice.Prepare();
-    if (LevelEditor->IsMultiViewport())
+    Renderer.PrepareRender();
+    Renderer.Render(GetWorld(), LevelEditor->GetActiveViewportClient());
+    /*if (LevelEditor->IsMultiViewport())
     {
         std::shared_ptr<FEditorViewportClient> viewportClient = GetLevelEditor()->GetActiveViewportClient();
-        for (int i = 0; i < 4; ++i)
+        for (int i = 0; i < 1; ++i)
         {
             LevelEditor->SetViewportClient(i);
             Renderer.PrepareRender();
@@ -140,7 +141,7 @@ void FEngineLoop::Render()
     {
         Renderer.PrepareRender();
         Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
-    }
+    }*/
 }
 
 void FEngineLoop::Tick()
@@ -198,7 +199,7 @@ float FEngineLoop::GetAspectRatio(IDXGISwapChain* swapChain) const
 
 void FEngineLoop::Input()
 {
-    if (GetAsyncKeyState('M') & 0x8000)
+    /*if (GetAsyncKeyState('M') & 0x8000)
     {
         if (!bTestInput)
         {
@@ -214,7 +215,7 @@ void FEngineLoop::Input()
     else
     {
         bTestInput = false;
-    }
+    }*/
 }
 
 void FEngineLoop::Exit()

@@ -5,6 +5,7 @@ class SSplitterH;
 class SSplitterV;
 class UWorld;
 class FEditorViewportClient;
+
 class SLevelEditor
 {
 public:
