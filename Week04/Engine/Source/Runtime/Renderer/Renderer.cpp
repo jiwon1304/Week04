@@ -1099,11 +1099,6 @@ void FRenderer::RenderStaticMeshes()
             prevMaterial = data.material;
         }
     
-        if (!StaticMeshComp->GetStaticMesh()) continue;
-    
-        OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
-        if (renderData == nullptr) continue;
-    
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
     }
 }
