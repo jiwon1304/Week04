@@ -42,7 +42,7 @@ void UWorld::CreateBaseObject()
 
     if (LocalGizmo == nullptr)
     {
-        //LocalGizmo = FObjectFactory::ConstructObject<UTransformGizmo>();
+        LocalGizmo = FObjectFactory::ConstructObject<UTransformGizmo>();
     }
 }
 
@@ -78,7 +78,7 @@ void UWorld::Tick(float DeltaTime)
 {
 	camera->TickComponent(DeltaTime);
 	EditorPlayer->Tick(DeltaTime);
-	//LocalGizmo->Tick(DeltaTime);
+	LocalGizmo->Tick(DeltaTime);
 
     // SpawnActor()에 의해 Actor가 생성된 경우, 여기서 BeginPlay 호출
     for (AActor* Actor : PendingBeginPlayActors)
