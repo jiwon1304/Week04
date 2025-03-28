@@ -398,3 +398,5 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+.idea/.idea.Week04/.idea/indexLayout.xml
+.idea/.idea.Week04/.idea/vcs.xml
