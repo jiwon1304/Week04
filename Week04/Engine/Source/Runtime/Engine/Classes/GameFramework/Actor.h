@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Components/SceneComponent.h"
 #include "Container/Set.h"
 #include "Engine/EngineTypes.h"
@@ -52,6 +52,12 @@ public:
     template <typename T>
         requires std::derived_from<T, UActorComponent>
     T* AddComponent();
+
+
+    template <typename T>
+        requires std::derived_from<T, UActorComponent>
+    void AddExternalComponent(T* InComponent);
+
 
     /** Actor가 가지고 있는 Component를 제거합니다. */
     void RemoveOwnedComponent(UActorComponent* Component);
@@ -142,6 +148,28 @@ T* AActor::AddComponent()
     Component->InitializeComponent();
 
     return Component;
+}
+
+template<typename T> requires std::derived_from<T, UActorComponent>
+void AActor::AddExternalComponent(T* InComponent)
+{
+    if (InComponent)
+    {
+        OwnedComponents.Add(InComponent);
+        InComponent->Owner = this;
+    }
+    // 만약 SceneComponent를 상속 받았다면
+    if (USceneComponent* NewSceneComp = Cast<USceneComponent>(InComponent))
+    {
+        if (RootComponent == nullptr)
+        {
+            RootComponent = NewSceneComp;
+        }
+        else
+        {
+            NewSceneComp->SetupAttachment(RootComponent);
+        }
+    }
 }
 
 template <typename T> requires std::derived_from<T, UActorComponent>
