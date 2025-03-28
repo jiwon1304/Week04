@@ -15,7 +15,9 @@ class AEditorPlayer : public AActor
 
     virtual void Tick(float DeltaTime) override;
 
-    void Input();
+    void SetHWND(HWND InHWnd);
+    HWND hWnd;
+    void Input(float DeltaTime);
     bool PickGizmo(FVector& rayOrigin);
     void PickActor(const FVector& pickPosition);
     void AddControlMode();
@@ -24,7 +26,7 @@ class AEditorPlayer : public AActor
 private:
     int RayIntersectsObject(const FVector& pickPosition, USceneComponent* obj, float& hitDistance, int& intersectCount);
     void ScreenToViewSpace(int screenX, int screenY, const FMatrix& viewMatrix, const FMatrix& projectionMatrix, FVector& rayOrigin);
-    void PickedObjControl();
+    void PickedObjControl(float DeltaTime);
     void ControlRotation(USceneComponent* pObj, UGizmoBaseComponent* Gizmo, int32 deltaX, int32 deltaY);
     void ControlTranslation(USceneComponent* pObj, UGizmoBaseComponent* Gizmo, int32 deltaX, int32 deltaY);
     void ControlScale(USceneComponent* pObj, UGizmoBaseComponent* Gizmo, int32 deltaX, int32 deltaY);

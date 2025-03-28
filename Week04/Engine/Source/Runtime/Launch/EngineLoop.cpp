@@ -117,12 +117,18 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     ResourceManager.Initialize(&Renderer, &GraphicDevice);
     LevelEditor = new SLevelEditor();
     LevelEditor->Initialize();
+    Renderer.SetViewport(LevelEditor->GetActiveViewportClient());
 
     GWorld = new UWorld;
-    FString JsonStr = FSceneMgr::LoadSceneFromFile("C:\\Users\\Jungle\\Fork\\Week04\\Week04\\Default.scene");
+#ifdef _DEBUG
+    FString JsonStr = FSceneMgr::LoadSceneFromFile("Default1.scene");
+#else
+    FString JsonStr = FSceneMgr::LoadSceneFromFile("Default.scene");
+#endif
     SceneData Scene = FSceneMgr::ParseSceneData(JsonStr);
-    GWorld->LoadSceneData(Scene);
-    GWorld->Initialize();
+    GWorld->LoadSceneData(Scene, LevelEditor->GetActiveViewportClient());
+    GWorld->Initialize(hWnd);
+    Renderer.SetWorld(GWorld);
 
     LevelEditor->OffMultiViewport();
     
@@ -134,7 +140,8 @@ void FEngineLoop::Render()
 {
     GraphicDevice.Prepare();
     Renderer.PrepareRender();
-    Renderer.Render(GetWorld(), LevelEditor->GetActiveViewportClient());
+    Renderer.Render();
+    
     /*if (LevelEditor->IsMultiViewport())
     {
         std::shared_ptr<FEditorViewportClient> viewportClient = GetLevelEditor()->GetActiveViewportClient();
@@ -155,17 +162,29 @@ void FEngineLoop::Render()
 
 void FEngineLoop::Tick()
 {
-    LARGE_INTEGER frequency;
-    const double targetFrameTime = 1000.0 / targetFPS; // 한 프레임의 목표 시간 (밀리초 단위)
+    double TargetDeltaTime = -1.f;
+    
+    bool bShouldLimitFPS = TargetFPS > 0;
+    if (bShouldLimitFPS)
+    {
+        // Limit FPS
+        TargetDeltaTime = 1000.0f / static_cast<double>(TargetFPS); // 1 FPS's target time (ms)
+    }
 
-    QueryPerformanceFrequency(&frequency);
+    LARGE_INTEGER Frequency;
+    QueryPerformanceFrequency(&Frequency);
 
-    LARGE_INTEGER startTime, endTime;
-    double elapsedTime = 1.0;
+    LARGE_INTEGER StartTime;
+    QueryPerformanceCounter(&StartTime);
+    
+    float ElapsedTime = 1.0;
 
     while (bIsExit == false)
     {
-        QueryPerformanceCounter(&startTime);
+        const LARGE_INTEGER EndTime = StartTime;
+        QueryPerformanceCounter(&StartTime);
+
+        ElapsedTime = static_cast<float>(StartTime.QuadPart - EndTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
 
         MSG msg;
         while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
@@ -181,8 +200,8 @@ void FEngineLoop::Tick()
         }
 
         Input();
-        GWorld->Tick(elapsedTime);
-        LevelEditor->Tick(elapsedTime);
+        GWorld->Tick(ElapsedTime);
+        LevelEditor->Tick(ElapsedTime);
         Render();
 
         UIMgr->BeginFrame();
@@ -192,10 +211,29 @@ void FEngineLoop::Tick()
         UIMgr->EndFrame();
 
         // Pending 처리된 오브젝트 제거
-        GUObjectArray.ProcessPendingDestroyObjects();
+        // GUObjectArray.ProcessPendingDestroyObjects(); // W04
 
         GraphicDevice.SwapBuffer();
+
+        if (bShouldLimitFPS)
+        {
+            LimitFPS(StartTime, Frequency, TargetDeltaTime);
+        }
     }
+}
+
+void FEngineLoop::LimitFPS(const LARGE_INTEGER& StartTime, const LARGE_INTEGER& Frequency, double TargetDeltaTime) const
+{
+    double ElapsedTime;
+    do
+    {
+        Sleep(0);
+
+        LARGE_INTEGER CurrentTime;
+        QueryPerformanceCounter(&CurrentTime);
+
+        ElapsedTime = static_cast<double>(CurrentTime.QuadPart - StartTime.QuadPart) * 1000.0 / static_cast<double>(Frequency.QuadPart);
+    } while (ElapsedTime < TargetDeltaTime);
 }
 
 float FEngineLoop::GetAspectRatio(IDXGISwapChain* swapChain) const
@@ -207,6 +245,7 @@ float FEngineLoop::GetAspectRatio(IDXGISwapChain* swapChain) const
 
 void FEngineLoop::Input()
 {
+    // W04
     /*if (GetAsyncKeyState('M') & 0x8000)
     {
         if (!bTestInput)

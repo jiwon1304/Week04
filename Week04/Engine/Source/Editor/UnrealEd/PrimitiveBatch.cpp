@@ -41,8 +41,7 @@ void UPrimitiveBatch::RenderBatch(const FMatrix& View, const FMatrix& Projection
 
     FMatrix Model = FMatrix::Identity;
     FMatrix MVP = Model * View * Projection;
-    FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
-    FEngineLoop::Renderer.UpdateConstant(MVP, NormalMatrix, FVector4(0,0,0,0), false);
+    FEngineLoop::Renderer.UpdateConstant(MVP, FVector4(0,0,0,0), false);
     FEngineLoop::Renderer.UpdateGridConstantBuffer(GridParam);
 
     UpdateBoundingBoxResources();
@@ -167,6 +166,8 @@ void UPrimitiveBatch::RenderAABB(const FBoundingBox& localAABB, const FVector& c
     BoundingBox.max = max;
     BoundingBoxes.Add(BoundingBox);
 }
+
+// not used
 void UPrimitiveBatch::RenderOBB(const FBoundingBox& localAABB, const FVector& center, const FMatrix& modelMatrix)
 {
     // 1) 로컬 AABB의 8개 꼭짓점
@@ -192,6 +193,7 @@ void UPrimitiveBatch::RenderOBB(const FBoundingBox& localAABB, const FVector& ce
 
 }
 
+// not used
 void UPrimitiveBatch::AddCone(const FVector& center, float radius, float height, int segments, const FVector4& color, const FMatrix& modelMatrix)
 {
     ConeSegmentCount = segments;

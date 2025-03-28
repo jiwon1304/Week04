@@ -265,13 +265,12 @@ void UText::TextMVPRendering()
     FMatrix Model = CreateBillboardMatrix();
 
     FMatrix MVP = Model * GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix() * GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetProjectionMatrix();
-    FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
     FVector4 UUIDColor = EncodeUUID() / 255.0f;
     if (this == GetWorld()->GetPickingGizmo()) {
-        FEngineLoop::Renderer.UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
+        FEngineLoop::Renderer.UpdateConstant(MVP, UUIDColor, true);
     }
     else
-        FEngineLoop::Renderer.UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
+        FEngineLoop::Renderer.UpdateConstant(MVP, UUIDColor, false);
 
     if (ShowFlags::GetInstance().currentFlags & static_cast<uint64>(EEngineShowFlags::SF_BillboardText)) {
         FEngineLoop::Renderer.RenderTextPrimitive(vertexTextBuffer, numTextVertices,

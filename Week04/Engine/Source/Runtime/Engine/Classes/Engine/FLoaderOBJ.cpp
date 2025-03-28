@@ -5,39 +5,39 @@
 
 UMaterial* FManagerOBJ::CreateMaterial(FObjMaterialInfo materialInfo)
 {
-    if (materialMap[materialInfo.MTLName] != nullptr)
-        return materialMap[materialInfo.MTLName];
+    if (MaterialMap[materialInfo.MTLName] != nullptr)
+        return MaterialMap[materialInfo.MTLName];
 
     UMaterial* newMaterial = FObjectFactory::ConstructObject<UMaterial>();
     newMaterial->SetMaterialInfo(materialInfo);
-    materialMap.Add(materialInfo.MTLName, newMaterial);
+    MaterialMap.Add(materialInfo.MTLName, newMaterial);
     return newMaterial;
 }
 
 UMaterial* FManagerOBJ::GetMaterial(FString name)
 {
-    return materialMap[name];
+    return MaterialMap[name];
 }
 
 UStaticMesh* FManagerOBJ::CreateStaticMesh(FString filePath)
 {
 
-    OBJ::FStaticMeshRenderData* staticMeshRenderData = FManagerOBJ::LoadObjStaticMeshAsset(filePath);
+    OBJ::FStaticMeshRenderData* StaticMeshRenderData = FManagerOBJ::LoadObjStaticMeshAsset(filePath);
 
-    if (staticMeshRenderData == nullptr) return nullptr;
+    if (StaticMeshRenderData == nullptr) return nullptr;
 
-    UStaticMesh* staticMesh = GetStaticMesh(staticMeshRenderData->ObjectName);
+    UStaticMesh* staticMesh = GetStaticMesh(StaticMeshRenderData->ObjectName);
     if (staticMesh != nullptr) {
         return staticMesh;
     }
 
     staticMesh = FObjectFactory::ConstructObject<UStaticMesh>();
-    staticMesh->SetData(staticMeshRenderData);
+    staticMesh->SetData(StaticMeshRenderData);
 
-    staticMeshMap.Add(staticMeshRenderData->ObjectName, staticMesh);
+    StaticMeshMap.Add(StaticMeshRenderData->ObjectName, staticMesh);
 }
 
 UStaticMesh* FManagerOBJ::GetStaticMesh(FWString name)
 {
-    return staticMeshMap[name];
+    return StaticMeshMap[name];
 }

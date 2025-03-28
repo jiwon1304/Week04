@@ -33,6 +33,9 @@ void FResourceMgr::Initialize(FRenderer* renderer, FGraphicsDevice* device)
 	LoadTextureFromDDS(device->Device, device->DeviceContext, L"Assets/Texture/UUID_Font.dds");
 	LoadTextureFromFile(device->Device, device->DeviceContext, L"Assets/Texture/Wooden Crate_Crate_BaseColor.png");
 	LoadTextureFromFile(device->Device, device->DeviceContext, L"Assets/Texture/spotLight.png");
+
+    LoadTextureFromFile(device->Device, device->DeviceContext, L"Assets/Bitten_Apple_tgyociqpa_Mid_2K_BaseColor.jpg");
+    LoadTextureFromFile(device->Device, device->DeviceContext, L"Assets/Freshly_Bitten_Apple_tgzpdhlpa_Mid_2K_BaseColor.jpg");
 }
 
 void FResourceMgr::Release(FRenderer* renderer) {
@@ -201,7 +204,7 @@ HRESULT FResourceMgr::LoadTextureFromDDS(ID3D11Device* device, ID3D11DeviceConte
 #pragma region Sampler
 	ID3D11SamplerState* SamplerState;
 	D3D11_SAMPLER_DESC samplerDesc = {};
-	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 	samplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
 	samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
