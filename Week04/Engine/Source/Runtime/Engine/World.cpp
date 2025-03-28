@@ -24,8 +24,7 @@ void UWorld::Initialize()
     //skySphere->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"SkySphere.obj"));
     //skySphere->GetStaticMesh()->GetMaterials()[0]->Material->SetDiffuse(FVector((float)32/255, (float)171/255, (float)191/255));
 
-
-    FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+    /*
 
     for (int i = 0; i < 100; i++)
     {
@@ -40,8 +39,14 @@ void UWorld::Initialize()
             }
         }
     }
+    */
 
-    //FSceneMgr::LoadSceneFromFile(FString("Default_Simplified.scene"));
+    //FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+    //AActor* SpawnedActor = SpawnActor<AActor>();
+    //UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+
+    //Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
+    //SpawnedActor->AddExternalComponent(Mesh);
 }
 
 void UWorld::CreateBaseObject()
@@ -130,6 +135,27 @@ void UWorld::Release()
 	ReleaseBaseObject();
 
     GUObjectArray.ProcessPendingDestroyObjects();
+}
+
+void UWorld::LoadSceneData(SceneData Scene)  
+{  
+   // 현재는 UUID까지 로드하지는 않음
+   // camera  
+   this->camera = Cast<UCameraComponent>(Scene.Cameras.begin()->Value);  
+   
+   // primitives  
+   for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
+   {  
+       if (UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(iter->Value))
+       {
+           AActor* SpawnedActor = SpawnActor<AActor>();
+           
+           Mesh->SetupAttachment(SpawnedActor->GetRootComponent());
+           SpawnedActor->AddExternalComponent(Mesh);
+       }
+   }
+   CreateBaseObject();
+
 }
 
 bool UWorld::DestroyActor(AActor* ThisActor)

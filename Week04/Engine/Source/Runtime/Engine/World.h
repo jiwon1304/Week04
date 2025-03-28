@@ -12,7 +12,7 @@ class UCameraComponent;
 class AEditorPlayer;
 class USceneComponent;
 class UTransformGizmo;
-
+class SceneData;
 
 class UWorld : public UObject
 {
@@ -26,6 +26,7 @@ public:
     void ReleaseBaseObject();
     void Tick(float DeltaTime);
     void Release();
+    void LoadSceneData(SceneData Scene);
 
     /**
      * World에 Actor를 Spawn합니다.
