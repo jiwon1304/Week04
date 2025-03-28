@@ -1,5 +1,6 @@
 ﻿#include "Player.h"
 
+#include "FWindowsPlatformTime.h"
 #include "UnrealClient.h"
 #include "World.h"
 #include "BaseGizmos/GizmoArrowComponent.h"
@@ -14,7 +15,6 @@
 #include "PropertyEditor/ShowFlags.h"
 #include "UnrealEd/EditorViewportClient.h"
 #include "UObject/UObjectIterator.h"
-
 
 using namespace DirectX;
 
@@ -40,16 +40,23 @@ void AEditorPlayer::Input()
             GetCursorPos(&mousePos);
             GetCursorPos(&m_LastMousePos);
 
+            const TStatId temp;
+            FScopeCycleCounter pickCounter = FScopeCycleCounter(temp);
+            ++TotalPickCount;
+            
             uint32 UUID = GetEngine().GraphicDevice.GetPixelUUID(mousePos);
-            // TArray<UObject*> objectArr = GetWorld()->GetObjectArr();
-            for ( const auto obj : TObjectRange<USceneComponent>())
-            {
-                if (obj->GetUUID() != UUID) continue;
-
-                UE_LOG(LogLevel::Display, *obj->GetName());
-            }
-            ScreenToClient(GetEngine().hWnd, &mousePos);
-
+            // TArray<UObject*> objectArr = GetWorld()->GetObjectArr(); TODO: 추가해야 함
+            // for ( const auto obj : TObjectRange<USceneComponent>())
+            // {
+            //     if (obj->GetUUID() != UUID) continue;
+            //
+            //     UE_LOG(LogLevel::Display, *obj->GetName());
+            // }
+            // ScreenToClient(GetEngine().hWnd, &mousePos);
+            
+            curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
+            accumulatedPickingTime += curPickingTime;
+            
             FVector pickPosition;
 
             const auto& ActiveViewport = GetEngine().GetLevelEditor()->GetActiveViewportClient();
