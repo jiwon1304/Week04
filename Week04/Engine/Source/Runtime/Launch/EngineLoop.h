@@ -26,6 +26,7 @@ public:
     void Input();
 
 private:
+    UImGuiManager* UIMgr;
     void WindowInit(HINSTANCE hInstance);
 
 public:
