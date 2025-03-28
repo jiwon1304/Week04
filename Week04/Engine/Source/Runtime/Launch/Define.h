@@ -18,6 +18,8 @@
 
 #include "UserInterface/Console.h"
 
+class UStaticMeshComponent;
+
 struct FVertexSimple
 {
     float x, y, z;    // Position
@@ -270,6 +272,7 @@ struct FPrimitiveCounts
 	int ConeCount; 
 	int pad1;
 };
+
 struct FLighting
 {
 	float lightDirX, lightDirY, lightDirZ; // 조명 방향
@@ -315,4 +318,10 @@ struct FTextureConstants {
     float VOffset;
     float pad0;
     float pad1;
+};
+
+struct MeshMaterialPair {
+    uint32 meshIndex;
+    UStaticMeshComponent* mesh;
+    UMaterial* material;
 };

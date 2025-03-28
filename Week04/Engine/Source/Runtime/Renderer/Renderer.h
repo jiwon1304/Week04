@@ -143,8 +143,10 @@ public: // line shader
     void RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorViewportClient>& ActiveViewport);
     void RenderLight(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport);
     void RenderBillboards(UWorld* World,std::shared_ptr<FEditorViewportClient> ActiveViewport);
+
+    static bool SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b);
 private:
-    TArray<UStaticMeshComponent*> StaticMeshObjs;
+    std::vector<MeshMaterialPair> SortedStaticMeshObjs;
     TArray<UGizmoBaseComponent*> GizmoObjs;
     TArray<UBillboardComponent*> BillboardObjs;
     TArray<ULightComponentBase*> LightObjs;

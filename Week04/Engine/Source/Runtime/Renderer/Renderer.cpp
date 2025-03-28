@@ -185,8 +185,8 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
     UINT offset = 0;
     Graphics->DeviceContext->IASetVertexBuffers(0, 1, &renderData->VertexBuffer, &Stride, &offset);
 
-    if (renderData->IndexBuffer)
-        Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    // if (renderData->IndexBuffer)
+    //     Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
     if (renderData->MaterialSubsets.Num() == 0)
     {
@@ -196,12 +196,12 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
 
     for (int subMeshIndex = 0; subMeshIndex < renderData->MaterialSubsets.Num(); subMeshIndex++)
     {
-        int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
+        // int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
 
         subMeshIndex == selectedSubMeshIndex ? UpdateSubMeshConstant(true) : UpdateSubMeshConstant(false);
 
-        overrideMaterial[materialIndex] != nullptr ? 
-            UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
+        // overrideMaterial[materialIndex] != nullptr ? 
+            // UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
 
         if (renderData->IndexBuffer)
         {
@@ -974,8 +974,16 @@ void FRenderer::PrepareRender()
     {
         if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
-            if (!Cast<UGizmoBaseComponent>(iter))
-                StaticMeshObjs.Add(pStaticMeshComp);
+            MeshMaterialPair pair;
+            pair.mesh = pStaticMeshComp;
+            int subMeshIndex = 0;
+            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                pair.meshIndex = subMeshIndex;
+                pair.material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material; //TODO 교체해야함
+                SortedStaticMeshObjs.push_back(pair);
+                subMeshIndex++;
+            }
         }
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
         {
@@ -990,11 +998,12 @@ void FRenderer::PrepareRender()
             LightObjs.Add(pLightComp);
         }
     }
+    std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
 }
 
 void FRenderer::ClearRenderArr()
 {
-    StaticMeshObjs.Empty();
+    SortedStaticMeshObjs.clear();
     GizmoObjs.Empty();
     BillboardObjs.Empty();
     LightObjs.Empty();
@@ -1021,8 +1030,12 @@ void FRenderer::Render(UWorld* World, std::shared_ptr<FEditorViewportClient> Act
 void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewportClient> ActiveViewport)
 {
     PrepareShader();
-    for (UStaticMeshComponent* StaticMeshComp : StaticMeshObjs)
+
+    UMaterial* prevMaterial = nullptr;
+    
+    for (MeshMaterialPair data : SortedStaticMeshObjs)
     {
+        UStaticMeshComponent* StaticMeshComp = data.mesh;
         FMatrix Model = JungleMath::CreateModelMatrix(
             StaticMeshComp->GetWorldLocation(),
             StaticMeshComp->GetWorldRotation(),
@@ -1034,38 +1047,75 @@ void FRenderer::RenderStaticMeshes(UWorld* World, std::shared_ptr<FEditorViewpor
         FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
         FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
         if (World->GetSelectedActor() == StaticMeshComp->GetOwner())
-        {
             UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
-        }
         else
             UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
-
-        if (USkySphereComponent* skysphere = Cast<USkySphereComponent>(StaticMeshComp))
+        
+        if (prevMaterial != data.material)
         {
-            UpdateTextureConstant(skysphere->UOffset, skysphere->VOffset);
-        }
-        else
-        {
-            UpdateTextureConstant(0, 0);
-        }
+            UINT offset = 0;
+            auto renderData = data.mesh->GetStaticMesh()->GetRenderData();
+            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &renderData->VertexBuffer, &Stride, &offset);
 
-        //if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_AABB))
-        //{
-        //    UPrimitiveBatch::GetInstance().RenderAABB(
-        //        StaticMeshComp->GetBoundingBox(),
-        //        StaticMeshComp->GetWorldLocation(),
-        //        Model
-        //    );
-        //}
-                
+            if (renderData->IndexBuffer)
+                Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+            UpdateMaterial(data.material->GetMaterialInfo());
+            prevMaterial = data.material;
+        }
     
         if (!StaticMeshComp->GetStaticMesh()) continue;
-
+    
         OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
         if (renderData == nullptr) continue;
-
+    
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
     }
+    
+    // for (UStaticMeshComponent* StaticMeshComp : SortedStaticMeshObjs)
+    // {
+    //     FMatrix Model = JungleMath::CreateModelMatrix(
+    //         StaticMeshComp->GetWorldLocation(),
+    //         StaticMeshComp->GetWorldRotation(),
+    //         StaticMeshComp->GetWorldScale()
+    //     );
+    //     // 최종 MVP 행렬
+    //     FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+    //     // 노말 회전시 필요 행렬
+    //     FMatrix NormalMatrix = FMatrix::Transpose(FMatrix::Inverse(Model));
+    //     FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
+    //     if (World->GetSelectedActor() == StaticMeshComp->GetOwner())
+    //     {
+    //         UpdateConstant(MVP, NormalMatrix, UUIDColor, true);
+    //     }
+    //     else
+    //         UpdateConstant(MVP, NormalMatrix, UUIDColor, false);
+    //
+    //     if (USkySphereComponent* skysphere = Cast<USkySphereComponent>(StaticMeshComp))
+    //     {
+    //         UpdateTextureConstant(skysphere->UOffset, skysphere->VOffset);
+    //     }
+    //     else
+    //     {
+    //         UpdateTextureConstant(0, 0);
+    //     }
+    //
+    //     //if (ActiveViewport->GetShowFlag() & static_cast<uint64>(EEngineShowFlags::SF_AABB))
+    //     //{
+    //     //    UPrimitiveBatch::GetInstance().RenderAABB(
+    //     //        StaticMeshComp->GetBoundingBox(),
+    //     //        StaticMeshComp->GetWorldLocation(),
+    //     //        Model
+    //     //    );
+    //     //}
+    //             
+    //
+    //     if (!StaticMeshComp->GetStaticMesh()) continue;
+    //
+    //     OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
+    //     if (renderData == nullptr) continue;
+    //
+    //     RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
+    // }
 }
 
 void FRenderer::RenderGizmos(const UWorld* World, const std::shared_ptr<FEditorViewportClient>& ActiveViewport)
@@ -1183,4 +1233,14 @@ void FRenderer::RenderLight(UWorld* World, std::shared_ptr<FEditorViewportClient
         UPrimitiveBatch::GetInstance().AddCone(Light->GetWorldLocation(), Light->GetRadius(), 15, 140, Light->GetColor(), Model);
         UPrimitiveBatch::GetInstance().RenderOBB(Light->GetBoundingBox(), Light->GetWorldLocation(), Model);
     }
+}
+
+bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b)
+{
+    // 1차: 텍스처 세트 ID
+    if (a.material->GetFName().GetDisplayIndex() != b.material->GetFName().GetDisplayIndex())
+        return a.material->GetFName().GetDisplayIndex() < b.material->GetFName().GetDisplayIndex();
+        
+    // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
+    return a.mesh < b.mesh;
 }
