@@ -12,6 +12,9 @@
 #include "LevelEditor/SLevelEditor.h"
 #include "UnrealEd\SceneMgr.h"
 
+float GPUElapsedTime;
+float CPUElapsedTime;
+
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -176,7 +179,10 @@ void FEngineLoop::Tick()
 
     LARGE_INTEGER StartTime;
     QueryPerformanceCounter(&StartTime);
-    
+
+    LARGE_INTEGER CPUTime;
+    LARGE_INTEGER GPUTime;
+
     float ElapsedTime = 1.0;
 
     while (bIsExit == false)
@@ -202,7 +208,11 @@ void FEngineLoop::Tick()
         Input();
         GWorld->Tick(ElapsedTime);
         LevelEditor->Tick(ElapsedTime);
+        QueryPerformanceCounter(&CPUTime);
+        CPUElapsedTime = static_cast<float>(CPUTime.QuadPart - StartTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
         Render();
+        QueryPerformanceCounter(&GPUTime);
+        GPUElapsedTime = static_cast<float>(GPUTime.QuadPart - CPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
 
         UIMgr->BeginFrame();
 

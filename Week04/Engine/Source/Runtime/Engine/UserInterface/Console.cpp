@@ -7,6 +7,10 @@
 #include "World.h"
 #include "Actors/Player.h"
 
+
+extern float CPUElapsedTime;
+extern float GPUElapsedTime;
+
 // 싱글톤 인스턴스 반환
 Console& Console::GetInstance() {
     static Console instance;
@@ -48,7 +52,12 @@ void StatOverlay::Render(ID3D11DeviceContext* context, UINT width, UINT height)
                 frameCount = 0;
                 lastTime = currentTime;
             }
-            ImGui::Text("FPS: %.2f", fps);
+
+            static float lastTimeEveryFrame = ImGui::GetTime();
+            float deltaTimeEveryFrame = currentTime - lastTimeEveryFrame;
+            lastTimeEveryFrame = currentTime;
+
+            ImGui::Text("FPS: %.2f / deltaTime : %lf", fps, deltaTimeEveryFrame * 1000);
         }
 
         AEditorPlayer* player = GEngineLoop.GetWorld()->GetEditorPlayer();
@@ -56,6 +65,7 @@ void StatOverlay::Render(ID3D11DeviceContext* context, UINT width, UINT height)
         uint32 totalPickingCount = player->GetTotalPickCount();
         double accumulatedPickingTime = player->GetAccumulatedPickingTime();
         ImGui::Text("Picking Time %lf ms: Num Attempts %u : Accumulated Time %lf ms", curPickingTime, totalPickingCount, accumulatedPickingTime);
+        ImGui::Text("CPU Time %lf / GPU Time : %lf", CPUElapsedTime* 1000, GPUElapsedTime* 1000);
 
         if (showMemory)
         {
