@@ -994,23 +994,27 @@ void FRenderer::PrepareRender()
 {
     for (const auto iter : TObjectRange<USceneComponent>())
     {
-        if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
-        {
-            MeshMaterialPair pair;
-            pair.mesh = pStaticMeshComp;
-            int subMeshIndex = 0;
-            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-            {
-                pair.meshIndex = subMeshIndex;
-                pair.material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material; //TODO 교체해야함
-                SortedStaticMeshObjs.push_back(pair);
-                subMeshIndex++;
-            }
-        }
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
         {
             GizmoObjs.Add(pGizmoComp);
         }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
+        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
+        {
+            int SubMeshIdx = 0;
+            FMeshData Data;
+            Data.StaticMeshComp = pStaticMeshComp;
+            Data.SubMeshIndex = SubMeshIdx;
+            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.IndexStart = subMesh.IndexStart;
+                Data.IndexCount = subMesh.IndexCount;
+                MaterialMeshMap[Material].Add(Data);
+                SubMeshIdx++;
+            }
+        }
+        
         /* W04 - do not render those comps
         if (UBillboardComponent* pBillboardComp = Cast<UBillboardComponent>(iter))
         {
@@ -1022,12 +1026,22 @@ void FRenderer::PrepareRender()
         }
         */
     }
-    std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
+    //std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
+    for (auto& [Material, MeshArray] : MaterialMeshMap)
+    {
+        // Material별로 나뉘어졌으므로, 배열의 길이가 짧아졌고, 정렬할 때 조금 더 빠를 듯함
+        std::sort(MeshArray.begin(), MeshArray.end(), FRenderer::SubmeshCmp);
+    }
 }
 
 void FRenderer::ClearRenderArr()
 {
-    SortedStaticMeshObjs.clear();
+    // SortedStaticMeshObjs.clear();
+    for (auto& [Material, DataArray] : MaterialMeshMap)
+    {
+        // W04 - 이번 게임잼 특성상 사용되는 Material이 고정되어있으므로, 맵에서 Key를 삭제하지는 않음.
+        DataArray.Empty();
+    }
     GizmoObjs.Empty();
     //BillboardObjs.Empty();
     //LightObjs.Empty();
@@ -1066,6 +1080,7 @@ void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
 
+    /*
     UMaterial* prevMaterial = nullptr;
     
     for (MeshMaterialPair data : SortedStaticMeshObjs)
@@ -1100,6 +1115,44 @@ void FRenderer::RenderStaticMeshes()
         }
     
         RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
+    }
+    */
+    
+    for (auto& [Material, DataArray] : MaterialMeshMap)
+    {
+        // 이번에 사용하는 머티리얼을 GPU로 전달
+        UpdateMaterial(Material->GetMaterialInfo());
+        void* PrevVertexBuffer = nullptr; // 이번에 버텍스 버퍼와 인덱스 버퍼를 바꿔야 하는지를 판단하기 위한 용도
+        for (const auto& Data : DataArray)
+        {
+            UStaticMeshComponent* StaticMeshComp = Data.StaticMeshComp;
+            uint32 Idx = Data.SubMeshIndex;
+            OBJ::FStaticMeshRenderData* RenderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
+            if (PrevVertexBuffer != RenderData->VertexBuffer)
+            {
+                // 같은 머티리얼을 사용하지만, 다른 스태틱 메시이므로, 버텍스 버퍼와 인덱스 버퍼 변경
+                PrevVertexBuffer = RenderData->VertexBuffer;
+                UINT offset = 0;
+                Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+                if (RenderData->IndexBuffer)
+                {
+                    Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                }
+            }
+
+            // 매트릭스 업데이트
+            FMatrix Model = JungleMath::CreateModelMatrix(
+                StaticMeshComp->GetWorldLocation(),
+                StaticMeshComp->GetWorldRotation(),
+                StaticMeshComp->GetWorldScale()
+            );
+            FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+            FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
+            UpdateConstant(MVP, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
+
+            // Draw
+            Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+        }
     }
 }
 
@@ -1222,4 +1275,10 @@ bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair
         
     // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
     return a.mesh < b.mesh;
+}
+
+bool FRenderer::SubmeshCmp(const FMeshData& a, const FMeshData& b)
+{
+    // 스태틱메시를 기준으로 정렬하여 버텍스 버퍼와 인덱스 버퍼를 바꾸는 횟수를 최소화하기 위함
+    return a.StaticMeshComp < b.StaticMeshComp;
 }

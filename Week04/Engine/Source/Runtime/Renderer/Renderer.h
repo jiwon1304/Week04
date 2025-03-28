@@ -7,6 +7,7 @@
 #include <d3d11.h>
 #include "EngineBaseTypes.h"
 #include "Define.h"
+#include "Container/Map.h"
 #include "Container/Set.h"
 
 class ULightComponentBase;
@@ -148,8 +149,27 @@ public: // line shader
     void RenderBillboards();
 
     static bool SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b);
+    
 private:
     std::vector<MeshMaterialPair> SortedStaticMeshObjs;
+
+    struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
+    {
+        UStaticMeshComponent* StaticMeshComp;
+        uint32 SubMeshIndex;
+        uint32 IndexStart;
+        uint32 IndexCount;
+    };
+
+    /**
+     * Key: 머티리얼
+     * Value: 해당 머티리얼을 사용하는 서브메시의 배열
+     */
+    TMap<UMaterial*, TArray<FMeshData>> MaterialMeshMap; 
+
+    // 스태틱메시를 기준으로 정렬하여 버텍스 버퍼와 인덱스 버퍼를 바꾸는 횟수를 최소화하기 위함
+    static bool SubmeshCmp(const FMeshData& a, const FMeshData& b);
+    
     TArray<UGizmoBaseComponent*> GizmoObjs;
     TArray<UBillboardComponent*> BillboardObjs;
     TArray<ULightComponentBase*> LightObjs;
