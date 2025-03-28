@@ -121,12 +121,12 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
     GWorld = new UWorld;
 #ifdef _DEBUG
-    FString JsonStr = FSceneMgr::LoadSceneFromFile("Default1.scene");
+    //FString JsonStr = FSceneMgr::LoadSceneFromFile("Default1.scene");
 #else
     FString JsonStr = FSceneMgr::LoadSceneFromFile("Default.scene");
-#endif
     SceneData Scene = FSceneMgr::ParseSceneData(JsonStr);
     GWorld->LoadSceneData(Scene, LevelEditor->GetActiveViewportClient());
+#endif
     GWorld->Initialize(hWnd);
     Renderer.SetWorld(GWorld);
 

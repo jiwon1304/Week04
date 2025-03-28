@@ -1001,17 +1001,47 @@ void FRenderer::PrepareRender()
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
+            bool bIsInsideFrustum = true;
+            Frustum frustum = ActiveViewport->GetFrustum();
+            FVector pos = pStaticMeshComp->GetWorldLocation();
+            FBoundingBox aabb = pStaticMeshComp->AABB;
+            aabb.min = aabb.min + pos;
+            aabb.max = aabb.max + pos;
+            /*TArray<FVector> vertices = aabb.GetVertices();
+            for (const FVector& vertex : vertices) {
+                for (int i = 0; i < 6; i++) {
+                    Plane& plane = frustum.planes[i];
+                    float dist = vertex.Dot(plane.normal) + plane.d;
+                    if (dist < 0) {
+                        bIsInsideFrustum = false;
+                        break;
+                    }
+                }
+                if (!bIsInsideFrustum)
+                    break;
+            }*/
+            for (int i = 0; i < 6; i++) {
+                Plane& plane = frustum.planes[i];
+                FVector p = aabb.GetPositiveVertex(plane.normal);
+                float dist = p.Dot(plane.normal) + plane.d;
+                if (dist < 0) {
+                    bIsInsideFrustum = false;
+                    break;
+                }
+            }
             int SubMeshIdx = 0;
-            FMeshData Data;
-            Data.StaticMeshComp = pStaticMeshComp;
-            Data.SubMeshIndex = SubMeshIdx;
-            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-            {
-                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-                Data.IndexStart = subMesh.IndexStart;
-                Data.IndexCount = subMesh.IndexCount;
-                MaterialMeshMap[Material].Add(Data);
-                SubMeshIdx++;
+            if (bIsInsideFrustum) {
+                FMeshData Data;
+                Data.StaticMeshComp = pStaticMeshComp;
+                Data.SubMeshIndex = SubMeshIdx;
+                for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+                {
+                    UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                    Data.IndexStart = subMesh.IndexStart;
+                    Data.IndexCount = subMesh.IndexCount;
+                    MaterialMeshMap[Material].Add(Data);
+                    SubMeshIdx++;
+                }
             }
         }
         
