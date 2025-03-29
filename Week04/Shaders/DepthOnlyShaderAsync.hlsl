@@ -11,23 +11,12 @@ cbuffer MatrixConstants : register(b1)
     float3 cameraPos;
 };
 
-
-// campos, viewproj, location, scale. 
-// rotation은 자체적으로 계산
-
-// 매 드로우콜마다 보내야 하는거 -> campos, scale
-// 매 프레임마다 보내야 하는거 -> viewproj
+Texture2D DepthMap : register(t0);
+SamplerState MapSampler : register(s0);
 
 struct PS_INPUT
 {
     float4 position : SV_POSITION; // 변환된 화면 좌표
-};
-
-// 정점 인덱스에 따라 Quad 정점 좌표 생성
-const static float2 QuadPos[6] =
-{
-    float2(-1, -1), float2(1, -1), float2(-1, 1), // 첫 번째 삼각형
-    float2(-1, 1), float2(1, -1), float2(1, 1) // 두 번째 삼각형
 };
 
 const static float2 PolygonPos[30] =
@@ -57,11 +46,13 @@ const static float2 PolygonPos[30] =
     float2(0.0000, 0.0000), float2(0.7660, -0.6428), float2(1.0000, 0.0000)
 };
 
+float GetDepth(float2 uv)
+{
+    return DepthMap.Sample(MapSampler, uv);
+}
 
 PS_INPUT mainVS(uint vertexID : SV_VertexID)
 {
-
-    
     PS_INPUT output;
 
     // 카메라를 향하는 방향 벡터
@@ -88,7 +79,11 @@ PS_INPUT mainVS(uint vertexID : SV_VertexID)
 float4 mainPS(PS_INPUT input) : SV_Target
 {
     float depth = input.position.z / input.position.w;
-    depth -= 1.f;
-    depth = depth < 0 ? 0 : depth;
-    return float4(depth, depth, depth, 1.0);
+    
+    // Query 개수새기용.
+    if (depth > GetDepth(input.position.xy))
+    {
+        discard;
+    }
+    return float4(1.0, 1.0, 1.0, 1.0);
 }

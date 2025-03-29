@@ -12,6 +12,7 @@
 
 // sorting
 #include "Occlusion.h"
+#include "OcclusionAsync.h"
 
 class UStaticMesh;
 class ULightComponentBase;
@@ -208,6 +209,13 @@ private:
 
 private:
     TArray<UStaticMeshComponent*> FrustumMeshes;
-    Occlusion OcclusionSystem;
+    OcclusionAsync OcclusionSystem;
+
+    //ID3D11Texture2D* DepthStencilTexture = nullptr;
+    //ID3D11DepthStencilView* DepthStencilView = nullptr;
+    //ID3D11ShaderResourceView* DepthStencilSRV = nullptr;
+    TArray<UPrimitiveComponent*> ComponentsProxy;
+    TArray<UStaticMeshComponent*> ComponentsProxyReturn;
+
 };
 

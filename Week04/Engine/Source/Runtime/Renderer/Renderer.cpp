@@ -45,7 +45,37 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     // W04 - Setup
     PrepareShader(); // W04 - 쉐이더 설정은 한번만
     BindBuffers();
+
+
+    // WIP : occlusion 테스트용
     OcclusionSystem.Init(Graphics);
+    //D3D11_TEXTURE2D_DESC depthDesc = {};
+    //depthDesc.Width = Graphics->screenWidth;
+    //depthDesc.Height = Graphics->screenHeight;
+    //depthDesc.MipLevels = 1;
+    //depthDesc.ArraySize = 1;
+    //depthDesc.Format = DXGI_FORMAT_R24G8_TYPELESS; // Depth Stencil과 Shader Resource 둘 다 가능하도록 설정
+    //depthDesc.SampleDesc.Count = 1;
+    //depthDesc.Usage = D3D11_USAGE_DEFAULT;
+    //depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    //depthDesc.CPUAccessFlags = 0;
+    //depthDesc.MiscFlags = 0;
+
+    //Graphics->Device->CreateTexture2D(&depthDesc, nullptr, &DepthStencilTexture);
+
+    //D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    //dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; // 실제 Depth Stencil로 사용할 포맷
+    //dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    //dsvDesc.Texture2D.MipSlice = 0;
+
+    //Graphics->Device->CreateDepthStencilView(DepthStencilTexture, &dsvDesc, &DepthStencilView);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS; // Shader에서 Depth 값만 읽을 수 있도록 설정
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+
+
 }
 
 void FRenderer::BindBuffers()
@@ -1052,24 +1082,24 @@ void FRenderer::PrepareRender()
     Frustum Frustum = ActiveViewport->GetFrustum();
     FOctreeNode* Octree = World->GetOctree();
 
+    /*for (auto& m : ComponentsProxyReturn)
+    {
+        if (UPrimitiveComponent* pComp = Cast<UPrimitiveComponent>(m))
+        {
+            Components.Add(pComp);
+        }
+    }*/
+
     TArray<UPrimitiveComponent*> Components;
+
     Octree->FrustumCull(Frustum, Components);
+    ComponentsProxy = Components;
 
-    QueryPerformanceCounter(&TempTime);
-    CPUElapsedTime += static_cast<float>(TempTime.QuadPart - CPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
-    GPUTime = TempTime;
-
-    TArray<UStaticMeshComponent*> DisOccludedMeshes = OcclusionSystem.Query(Components);
-
-    QueryPerformanceCounter(&TempTime);
-    GPUQueryTime = static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
-    GPUElapsedTime += GPUQueryTime;
-    CPUTime = TempTime;
 
     AActor* SelectedActor = World->GetSelectedActor();
     
     // sortmeshrougly -> queryocclusion -> disoccludedmeshes
-    for (const auto& Comp : DisOccludedMeshes)
+    for (const auto& Comp : ComponentsProxyReturn)
     {
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(Comp))
         {
@@ -1175,6 +1205,8 @@ void FRenderer::Render()
     // UpdateLightBuffer(); // W04
     
      Graphics->Prepare();
+     PrepareShader();
+
      BindBuffers();
     // TODO: W04 - 아래 함수는 월드 그리드와 바운딩 박스를 렌더함. 그리드와 바운딩 박스 렌더 분리해야함.
     UPrimitiveBatch::GetInstance().RenderBatch();
@@ -1191,10 +1223,30 @@ void FRenderer::Render()
     
     RenderLight(World, ActiveViewport);
     */
-    
-    ClearRenderArr();
+
     QueryPerformanceCounter(&TempTime);
     GPUElapsedTime += static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    GPUTime = TempTime;
+
+    //TArray<UStaticMeshComponent*> DisOccludedMeshes = OcclusionSystem.Query(Components);
+
+
+    //OcclusionSystem.Prepare();
+    ComponentsProxyReturn = OcclusionSystem.Query(Graphics->DepthStencilView, ComponentsProxy);
+
+    //Graphics->Prepare();
+    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
+
+    //DeviceContext->RSSetViewports(1, &ViewportInfo); // GPU가 화면을 렌더링할 영역 설정
+
+    Graphics->DeviceContext->OMSetRenderTargets(2, Graphics->RTVs, Graphics->DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
+    Graphics->DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff); // 블렌뎅 상태 설정, 기본블렌딩 상태임
+
+    PrepareShader();
+    ClearRenderArr();
+    QueryPerformanceCounter(&TempTime);
+    GPUQueryTime = static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    GPUElapsedTime += GPUQueryTime;
     CPUTime = TempTime;
 }
 

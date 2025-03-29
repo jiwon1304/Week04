@@ -147,8 +147,8 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
 void FEngineLoop::Render()
 {
-    GraphicDevice.Prepare();
-    Renderer.PrepareRender();
+    Renderer.PrepareRender(); // 이전 프레임 정보를 씀
+    GraphicDevice.Prepare(); 
     Renderer.Render();
     
     /*if (LevelEditor->IsMultiViewport())
