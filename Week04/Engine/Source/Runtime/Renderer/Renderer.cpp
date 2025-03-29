@@ -1484,6 +1484,10 @@ void FRenderer::QueryOcclusion()
         constants->CameraPos = CameraLocation;
     }
     Graphics->DeviceContext->Unmap(OcclusionConstantBuffer, 0);
+    
+    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
+    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
+    
     // 가까운거부터
     int count = 0;
     for (auto& Meshes : MeshesSortedByDistance)
@@ -1543,15 +1547,15 @@ void FRenderer::RenderOccluder(UStaticMeshComponent* StaticMeshComp)
 
     float OccluderSize = StaticMeshComp->GetStaticMesh()->GetRenderData()->OccluderRadius;
 
-    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
-    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
+    //Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
+    //Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
 
     D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
     Graphics->DeviceContext->Map(OcclusionObjectInfoBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
     {
         FOcclusionInformation* constants = static_cast<FOcclusionInformation*>(ConstantBufferMSR.pData);
         constants->Position = ActorLocation;
-        constants->Radius = OccluderSize;
+        constants->Radius = OccluderSize * 1.2;
     }
     Graphics->DeviceContext->Unmap(OcclusionObjectInfoBuffer, 0);
 
@@ -1567,8 +1571,8 @@ void FRenderer::RenderOccludee(UStaticMeshComponent* StaticMeshComp)
 
     float OccludeeSize = StaticMeshComp->GetStaticMesh()->GetRenderData()->OccludeeRadius;
 
-    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
-    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
+    //Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
+    //Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
 
     D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
     Graphics->DeviceContext->Map(OcclusionObjectInfoBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
