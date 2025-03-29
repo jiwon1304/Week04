@@ -7,7 +7,6 @@ struct Frustum;
 struct FOctreeNode
 {
     FOctreeNode(FVector Min, FVector Max);
-    ~FOctreeNode();
 
     void SubDivide();
 

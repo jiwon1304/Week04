@@ -12,11 +12,6 @@ FOctreeNode::FOctreeNode(FVector Min, FVector Max)
     , bIsLeaf(true)
 {}
 
-FOctreeNode::~FOctreeNode()
-{
-    Children.Empty();
-}
-
 void FOctreeNode::SubDivide()
 {
     const FVector Center = BoundBox.GetCenter();
@@ -92,33 +87,24 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
     {
         return;
     }
-    if (Components.Num() > 0)
-    {
-        int32 a = 0;
-        int32 b = 0;
-    }
+    
     if (bIsLeaf)
     {
-        for (UPrimitiveComponent* comp : Components)
+        for (UPrimitiveComponent* Comp : Components)
         {
-            if (UStaticMeshComponent* staticMesh = Cast<UStaticMeshComponent>(comp))
+            if (Frustum.Intersects(Comp->GetBoundingBox()))
             {
-                FBoundingBox bounding = staticMesh->GetBoundingBox();
-            }
-            if (Frustum.Intersects(comp->GetBoundingBox()))
-            {
-                OutComponents.Add(comp);
+                OutComponents.Add(Comp);
             }
         }
+        return;
     }
-    else
+    
+    for (int32 i = 0; i < 8; ++i)
     {
-        for (int32 i = 0; i < 8; ++i)
+        if (Children[i])
         {
-            if (Children[i])
-            {
-                Children[i]->FrustumCull(Frustum, OutComponents);
-            }
+            Children[i]->FrustumCull(Frustum, OutComponents);
         }
     }
 }
@@ -126,7 +112,8 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
 uint32 FOctreeNode::CountAllComponents() const
 {
     uint32 Count = Components.Num();
-    if (!bIsLeaf) {
+    if (!bIsLeaf)
+    {
         for (int32 i = 0; i < 8; ++i)
         {
             if (Children[i])
