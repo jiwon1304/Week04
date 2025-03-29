@@ -287,7 +287,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
 {
     if (IsPerspective()) {
         Projection = JungleMath::CreateProjectionMatrix(
-            XMConvertToRadians(ViewFOV + 20),
+            XMConvertToRadians(ViewFOV),
             GetViewport()->GetViewport().Width/ GetViewport()->GetViewport().Height,
             nearPlane,
             farPlane
