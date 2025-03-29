@@ -5,7 +5,7 @@ extern FEngineLoop GEngineLoop;
 
 UPrimitiveBatch::UPrimitiveBatch()
 {
-    GenerateGrid(5, 5000);
+    GenerateGrid(5, 100);
 }
 
 UPrimitiveBatch::~UPrimitiveBatch()

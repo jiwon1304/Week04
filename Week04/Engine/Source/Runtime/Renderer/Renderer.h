@@ -150,8 +150,6 @@ public: // line shader
     void RenderLight();
     void RenderBillboards();
 
-    static bool SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b);
-    
 private:
     std::vector<MeshMaterialPair> SortedStaticMeshObjs;
 

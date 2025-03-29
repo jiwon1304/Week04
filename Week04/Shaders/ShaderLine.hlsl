@@ -235,7 +235,7 @@ float3 ComputeOrientedBoxPosition(uint obIndex, uint edgeIndex, uint vertexID)
 PS_INPUT mainVS(VS_INPUT input)
 {
     PS_INPUT output;
-    float3 pos;
+        float3 pos;
     float4 color;
     
     // Cone 하나당 (2 * SegmentCount) 선분.
