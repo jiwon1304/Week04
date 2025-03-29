@@ -3,7 +3,7 @@ SamplerState Sampler : register(s0);
 
 cbuffer MatrixConstants : register(b0)
 {
-    row_major float4x4 MVP;
+    row_major matrix WorldMatrix;
     float4 UUID;
     bool isSelected;
     float3 Pad0;
@@ -59,7 +59,7 @@ PS_OUTPUT mainPS(PS_INPUT input)
     
     if (isSelected)
     {
-        FinalColor += float3(0.2f, 0.2f, 0.0f); // 노란색 틴트로 하이라이트
+        FinalColor += float3(0.4f, 0.4f, 0.0f); // 노란색 틴트로 하이라이트
     }
     
     output.color = float4(FinalColor, 1.f);

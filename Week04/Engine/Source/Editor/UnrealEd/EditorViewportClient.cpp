@@ -131,7 +131,6 @@ void FEditorViewportClient::Tick(float DeltaTime)
     Input(DeltaTime);
     if (bCameraMoved) {
         UpdateViewMatrix();
-        UpdateProjectionMatrix();
         UpdateFrustum();
         bCameraMoved = false;
     }
@@ -368,6 +367,7 @@ void FEditorViewportClient::UpdateViewMatrix()
                 Pivot, FVector(0.0f, 0.0f, 1.0f));
         }
     }
+    FEngineLoop::Renderer.UpdateViewMatrix(View);
 }
 
 void FEditorViewportClient::UpdateProjectionMatrix()
@@ -397,6 +397,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
             farPlane
         );
     }
+    FEngineLoop::Renderer.UpdateProjectionMatrix(Projection);
 }
 
 void FEditorViewportClient::UpdateFrustum()

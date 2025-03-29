@@ -111,12 +111,15 @@ void FRenderer::PrepareShader() const
     if (ConstantBuffer)
     {
         Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Graphics->DeviceContext->VSSetConstantBuffers(5, 1, &ConstantBufferView);
+        Graphics->DeviceContext->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
+        
         Graphics->DeviceContext->PSSetConstantBuffers(0, 1, &ConstantBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
         // Graphics->DeviceContext->PSSetConstantBuffers(2, 1, &LightingBuffer);
         Graphics->DeviceContext->PSSetConstantBuffers(3, 1, &FlagBuffer);
         // Graphics->DeviceContext->PSSetConstantBuffers(4, 1, &SubMeshConstantBuffer);
-        // Graphics->DeviceContext->PSSetConstantBuffers(5, 1, &TextureConstantBufer);
+        // Graphics->DeviceContext->PSSetConstantBuffers(5, 1, &TextureConstantBuffer);
     }
 }
 
@@ -348,6 +351,12 @@ void FRenderer::CreateConstantBuffer()
 
     Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &ConstantBuffer);
 
+    constantbufferdesc.ByteWidth = sizeof(FConstantsView) + 0xf & 0xfffffff0;
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &ConstantBufferView);
+
+    constantbufferdesc.ByteWidth = sizeof(FConstantsProjection) + 0xf & 0xfffffff0;
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &ConstantBufferProjection);
+
     constantbufferdesc.ByteWidth = sizeof(FSubUVConstant) + 0xf & 0xfffffff0;
     Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &SubUVConstantBuffer);
 
@@ -364,7 +373,7 @@ void FRenderer::CreateConstantBuffer()
     Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &SubMeshConstantBuffer);
 
     constantbufferdesc.ByteWidth = sizeof(FTextureConstants) + 0xf & 0xfffffff0;
-    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &TextureConstantBufer);
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &TextureConstantBuffer);
 }
 
 void FRenderer::CreateLightingBuffer()
@@ -395,6 +404,18 @@ void FRenderer::ReleaseConstantBuffer()
         ConstantBuffer = nullptr;
     }
 
+    if (ConstantBufferView)
+    {
+        ConstantBufferView->Release();
+        ConstantBufferView = nullptr;
+    }
+
+    if (ConstantBufferProjection)
+    {
+        ConstantBufferProjection->Release();
+        ConstantBufferProjection = nullptr;
+    }
+
     if (LightingBuffer)
     {
         LightingBuffer->Release();
@@ -419,10 +440,10 @@ void FRenderer::ReleaseConstantBuffer()
         SubMeshConstantBuffer = nullptr;
     }
 
-    if (TextureConstantBufer)
+    if (TextureConstantBuffer)
     {
-        TextureConstantBufer->Release();
-        TextureConstantBufer = nullptr;
+        TextureConstantBuffer->Release();
+        TextureConstantBuffer = nullptr;
     }
 }
 
@@ -444,7 +465,7 @@ void FRenderer::UpdateLightBuffer() const
     Graphics->DeviceContext->Unmap(LightingBuffer, 0);
 }
 
-void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const
+void FRenderer::UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const
 {
     if (ConstantBuffer)
     {
@@ -453,11 +474,41 @@ void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSe
         Graphics->DeviceContext->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
         {
             FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
-            constants->MVP = MVP;
+            constants->WorldMatrix = WorldMatrix;
             constants->UUIDColor = UUIDColor;
             constants->IsSelected = IsSelected;
         }
         Graphics->DeviceContext->Unmap(ConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
+    }
+}
+
+void FRenderer::UpdateViewMatrix(const FMatrix& InViewMatrix) const
+{
+    if (ConstantBufferView)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+
+        Graphics->DeviceContext->Map(ConstantBufferView, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FConstantsView* constants = static_cast<FConstantsView*>(ConstantBufferMSR.pData);
+            constants->ViewMatrix = InViewMatrix;
+        }
+        Graphics->DeviceContext->Unmap(ConstantBufferView, 0);
+    }
+}
+
+void FRenderer::UpdateProjectionMatrix(const FMatrix& InProjectionMatrix) const
+{
+    if (ConstantBufferProjection)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+
+        Graphics->DeviceContext->Map(ConstantBufferProjection, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FConstantsProjection* constants = static_cast<FConstantsProjection*>(ConstantBufferMSR.pData);
+            constants->ProjectionMatrix = InProjectionMatrix;
+        }
+        Graphics->DeviceContext->Unmap(ConstantBufferProjection, 0);
     }
 }
 
@@ -535,15 +586,15 @@ void FRenderer::UpdateSubMeshConstant(bool isSelected) const
 
 void FRenderer::UpdateTextureConstant(float UOffset, float VOffset)
 {
-    if (TextureConstantBufer) {
+    if (TextureConstantBuffer) {
         D3D11_MAPPED_SUBRESOURCE constantbufferMSR; // GPU �� �޸� �ּ� ����
-        Graphics->DeviceContext->Map(TextureConstantBufer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
+        Graphics->DeviceContext->Map(TextureConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &constantbufferMSR);
         FTextureConstants* constants = (FTextureConstants*)constantbufferMSR.pData; //GPU �޸� ���� ����
         {
             constants->UOffset = UOffset;
             constants->VOffset = VOffset;
         }
-        Graphics->DeviceContext->Unmap(TextureConstantBufer, 0);
+        Graphics->DeviceContext->Unmap(TextureConstantBuffer, 0);
     }
 }
 
@@ -1142,7 +1193,7 @@ void FRenderer::RenderStaticMeshes()
             }
             for (const FMeshData& Data : DataArray)
             {
-                FMatrix MVP = Data.WorldMatrix * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+                FMatrix MVP = Data.WorldMatrix;
                 FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
                 UpdateConstant(MVP, UUIDColor, Data.bIsSelected);
 
