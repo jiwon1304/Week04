@@ -1,6 +1,8 @@
 #pragma once
 
 #include <DirectXMath.h>
+
+#include "MathUtility.h"
 #include "Vector4.h"
 #include "Vector.h"
 
@@ -105,9 +107,9 @@ struct FMatrix
 
     static FMatrix CreateRotation(float roll, float pitch, float yaw)
     {
-        float radRoll  = roll  * (3.14159265359f / 180.0f);
-        float radPitch = pitch * (3.14159265359f / 180.0f);
-        float radYaw   = yaw   * (3.14159265359f / 180.0f);
+        float radRoll  = FMath::DegreesToRadians(roll);
+        float radPitch = FMath::DegreesToRadians(pitch);
+        float radYaw   = FMath::DegreesToRadians(yaw);
         DirectX::XMVECTOR q = DirectX::XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
         DirectX::XMMATRIX xm = DirectX::XMMatrixRotationQuaternion(q);
         return FromXMMATRIX(xm);

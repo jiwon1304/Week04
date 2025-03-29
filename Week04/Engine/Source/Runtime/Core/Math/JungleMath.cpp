@@ -60,9 +60,9 @@ FVector JungleMath::FVectorRotate(FVector & origin, const FVector & rotation)
 
 FQuat JungleMath::EulerToQuaternion(const FVector & eulerDegrees)
 {
-    float radRoll = DegToRad(eulerDegrees.x);
-    float radPitch = DegToRad(eulerDegrees.y);
-    float radYaw = DegToRad(eulerDegrees.z);
+    float radRoll = FMath::DegreesToRadians(eulerDegrees.x);
+    float radPitch = FMath::DegreesToRadians(eulerDegrees.y);
+    float radYaw = FMath::DegreesToRadians(eulerDegrees.z);
     XMVECTOR q = XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
     return FQuat::FromSIMD(q);
 }
@@ -76,21 +76,21 @@ FVector JungleMath::QuaternionToEuler(const FQuat & quat)
     
     float sinYaw = 2.0f * (q.w * q.z + q.x * q.y);
     float cosYaw = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
-    euler.z = RadToDeg(atan2(sinYaw, cosYaw));
+    euler.z = FMath::RadiansToDegrees(atan2(sinYaw, cosYaw));
     
     float sinPitch = 2.0f * (q.w * q.y - q.z * q.x);
     if (fabs(sinPitch) >= 1.0f)
     {
-        euler.y = RadToDeg(copysign(3.14159265359f / 2.0f, sinPitch));
+        euler.y = FMath::RadiansToDegrees(copysign(PI / 2.0f, sinPitch));
     }
     else
     {
-        euler.y = RadToDeg(asin(sinPitch));
+        euler.y = FMath::RadiansToDegrees(asin(sinPitch));
     }
     
     float sinRoll = 2.0f * (q.w * q.x + q.y * q.z);
     float cosRoll = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
-    euler.x = RadToDeg(atan2(sinRoll, cosRoll));
+    euler.x = FMath::RadiansToDegrees(atan2(sinRoll, cosRoll));
     
     return euler;
 }
@@ -102,20 +102,10 @@ FVector JungleMath::FVectorRotate(FVector & origin, const FQuat & rotation)
 
 FMatrix JungleMath::CreateRotationMatrix(FVector rotation)
 {
-    float radRoll = DegToRad(rotation.x);
-    float radPitch = DegToRad(rotation.y);
-    float radYaw = DegToRad(rotation.z);
+    float radRoll = FMath::DegreesToRadians(rotation.x);
+    float radPitch = FMath::DegreesToRadians(rotation.y);
+    float radYaw = FMath::DegreesToRadians(rotation.z);
     XMVECTOR q = XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
     XMMATRIX rotationMatrix = XMMatrixRotationQuaternion(q);
     return FMatrix::FromXMMATRIX(rotationMatrix);
-}
-
-float JungleMath::RadToDeg(float radian)
-{
-    return radian * (180.0f / 3.14159265359f);
-}
-
-float JungleMath::DegToRad(float degree)
-{
-    return degree * (3.14159265359f / 180.0f);
 }

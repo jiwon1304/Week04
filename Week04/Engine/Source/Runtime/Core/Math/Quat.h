@@ -1,7 +1,7 @@
 #pragma once
 
 #include <DirectXMath.h>
-#include <cmath>
+#include "MathUtility.h"
 
 struct FQuat
 {
@@ -67,7 +67,7 @@ struct FQuat
     {
         DirectX::XMVECTOR q = this->ToSIMD();
         float length = DirectX::XMVectorGetX(DirectX::XMVector4Length(q));
-        return fabsf(length - 1.0f) < 1e-6f;
+        return fabsf(length - 1.0f) < SMALL_NUMBER;
     }
 
     // 쿼터니언 정규화 (단위 쿼터니언으로 만듬)
@@ -89,9 +89,9 @@ struct FQuat
     // 오일러 각(roll, pitch, yaw; 단위: 도)로부터 회전 쿼터니언 생성
     static FQuat CreateRotation(float roll, float pitch, float yaw)
     {
-        float radRoll = roll * (3.14159265359f / 180.0f);
-        float radPitch = pitch * (3.14159265359f / 180.0f);
-        float radYaw = yaw * (3.14159265359f / 180.0f);
+        float radRoll = FMath::DegreesToRadians(roll);
+        float radPitch = FMath::DegreesToRadians(pitch);
+        float radYaw = FMath::DegreesToRadians(yaw);
         DirectX::XMVECTOR q = DirectX::XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
         return FQuat::FromSIMD(q);
     }
