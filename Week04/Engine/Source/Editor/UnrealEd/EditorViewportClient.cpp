@@ -40,7 +40,7 @@ void FEditorViewportClient::Initialize(int32 viewportIndex)
 
 void FEditorViewportClient::Tick(float DeltaTime)
 {
-    Input();
+    Input(DeltaTime);
     if (bCameraMoved) {
         UpdateViewMatrix();
         UpdateProjectionMatrix();
@@ -58,7 +58,7 @@ void FEditorViewportClient::Release()
 
 
 
-void FEditorViewportClient::Input()
+void FEditorViewportClient::Input(float DeltaTime)
 {
     if (GetAsyncKeyState(VK_RBUTTON) & 0x8000) // VK_RBUTTON은 마우스 오른쪽 버튼을 나타냄
     {
@@ -91,30 +91,39 @@ void FEditorViewportClient::Input()
 
             SetCursorPos(lastMousePos.x, lastMousePos.y);
         }
-        if (GetAsyncKeyState('A') & 0x8000)
+
+        // Move
+        FVector MoveDirection = FVector::ZeroVector;
+        if (IsPerspective())
         {
-            CameraMoveRight(-1.f);
+            if (GetAsyncKeyState('A') & 0x8000)
+            {
+                MoveDirection = MoveDirection - ViewTransformPerspective.GetRightVector();
+            }
+            if (GetAsyncKeyState('D') & 0x8000)
+            {
+                MoveDirection = MoveDirection + ViewTransformPerspective.GetRightVector();
+            }
+            if (GetAsyncKeyState('W') & 0x8000)
+            {
+                MoveDirection = MoveDirection + ViewTransformPerspective.GetForwardVector();
+            }
+            if (GetAsyncKeyState('S') & 0x8000)
+            {
+                MoveDirection = MoveDirection - ViewTransformPerspective.GetForwardVector();
+            }
+            if (GetAsyncKeyState('E') & 0x8000)
+            {
+                MoveDirection = MoveDirection + FVector::UpVector;
+            }
+            if (GetAsyncKeyState('Q') & 0x8000)
+            {
+                MoveDirection = MoveDirection - FVector::UpVector;
+            }
         }
-        if (GetAsyncKeyState('D') & 0x8000)
-        {
-            CameraMoveRight(1.f);
-        }
-        if (GetAsyncKeyState('W') & 0x8000)
-        {
-            CameraMoveForward(1.f);
-        }
-        if (GetAsyncKeyState('S') & 0x8000)
-        {
-            CameraMoveForward(-1.f);
-        }
-        if (GetAsyncKeyState('E') & 0x8000)
-        {
-            CameraMoveUp(1.f);
-        }
-        if (GetAsyncKeyState('Q') & 0x8000)
-        {
-            CameraMoveUp(-1.f);
-        }
+        const FVector CurrentLocation = ViewTransformPerspective.GetLocation();
+        const FVector NextLocation = CurrentLocation + MoveDirection.Normalize() * CameraSpeedScalar * DeltaTime;
+        ViewTransformPerspective.SetLocation(NextLocation);
     }
     else
     {

@@ -207,7 +207,7 @@ public:
     void Tick(float DeltaTime);
     void Release();
 
-    void Input();
+    void Input(float DeltaTime);
     void ResizeViewport(const DXGI_SWAP_CHAIN_DESC& swapchaindesc);
     void ResizeViewport(FRect Top, FRect Bottom, FRect Left, FRect Right);
 
@@ -216,7 +216,7 @@ protected:
     /** Camera speed setting */
     int32 CameraSpeedSetting = 1;
     /** Camera speed scalar */
-    float CameraSpeedScalar = 1.0f;
+    float CameraSpeedScalar = 20.0f;
     float GridSize;
 
 public: 
