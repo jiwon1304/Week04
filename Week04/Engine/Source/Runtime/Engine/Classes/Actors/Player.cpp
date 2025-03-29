@@ -52,25 +52,23 @@ void AEditorPlayer::Input(float DeltaTime)
             FScopeCycleCounter pickCounter = FScopeCycleCounter(temp);
             ++TotalPickCount;
             
-            uint32 UUID = GetEngine().GraphicDevice.GetPixelUUID(mousePos);
-            // TArray<UObject*> objectArr = GetWorld()->GetObjectArr(); TODO: 추가해야 함
-            // for ( const auto obj : TObjectRange<USceneComponent>())
-            // {
-            //     if (obj->GetUUID() != UUID) continue;
+            // uint32 UUID = GetEngine().GraphicDevice.GetPixelUUID(mousePos);
             //
-            //     UE_LOG(LogLevel::Display, *obj->GetName());
+            // for (const auto obj : TObjectRange<USceneComponent>())
+            // {
+            //     if (obj->GetUUID() == UUID)
+            //         GetWorld()->SetPickedActor(obj->GetOwner());
             // }
-            // ScreenToClient(GetEngine().hWnd, &mousePos);
-            
-            curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
-            accumulatedPickingTime += curPickingTime;
-            
             FVector pickPosition;
 
             const auto& ActiveViewport = GetEngine().GetLevelEditor()->GetActiveViewportClient();
             ScreenToViewSpace(mousePos.x, mousePos.y, ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix(), pickPosition);
             bool res = PickGizmo(pickPosition);
             if (!res) PickActor(pickPosition);
+            
+            curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
+            accumulatedPickingTime += curPickingTime;
+            
         }
         else
         {
@@ -301,7 +299,7 @@ void AEditorPlayer::ScreenToViewSpace(int screenX, int screenY, const FMatrix& v
     }
     else
     {
-        pickPosition.z = 1.0f;  // 퍼스펙티브 모드: near plane
+        pickPosition.z = 1.0f;  // 퍼스펙티브 모드: far plane
     }
 }
 
