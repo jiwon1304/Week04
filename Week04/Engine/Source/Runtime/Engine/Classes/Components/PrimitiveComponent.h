@@ -20,6 +20,7 @@ public:
 
 private:
     FString m_Type;
+    bool bIsInitialized;
 
 public:
     FString GetType() { return m_Type; }
@@ -29,6 +30,6 @@ public:
         m_Type = _Type;
         //staticMesh = FEngineLoop::resourceMgr.GetMesh(m_Type);
     }
-    FBoundingBox GetBoundingBox() { return AABB; }
+    FBoundingBox GetBoundingBox();
 };
 

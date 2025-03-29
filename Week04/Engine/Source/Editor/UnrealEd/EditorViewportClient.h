@@ -91,9 +91,9 @@ struct Frustum {
 
     void CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio);
 
-    FVector IntersectThreePlanes(const Plane& p1, const Plane& p2, const Plane& p3);
+    void CreatePlaneWithMatrix(FMatrix viewProj);
 
-    TArray<FVector> ExtractFrustumCorners();
+    bool Intersects(FBoundingBox box);
 };
 
 class FEditorViewportClient : public FViewportClient

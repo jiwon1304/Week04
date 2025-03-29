@@ -1027,6 +1027,37 @@ void FRenderer::RenderBatch(
 
 void FRenderer::PrepareRender()
 {
+    TArray<UPrimitiveComponent*> components;
+    Frustum Frustum = ActiveViewport->GetFrustum();
+    FOctreeNode* octree = World->GetOctree();
+    uint32 componentCount = octree->CountAllComponents();
+    octree->FrustumCull(Frustum, components);
+    for (const auto comp : components) {
+        if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(comp)) {
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+            FMeshData Data;
+            int SubMeshIdx = 0;
+            Data.SubMeshIndex = SubMeshIdx;
+            Data.WorldMatrix = JungleMath::CreateModelMatrix(
+                pStaticMeshComp->GetWorldLocation(),
+                pStaticMeshComp->GetWorldRotation(),
+                pStaticMeshComp->GetWorldScale()
+            );
+            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.IndexStart = subMesh.IndexStart;
+                Data.IndexCount = subMesh.IndexCount;
+                MaterialMeshMap[Material][StaticMesh].push_back(Data);
+                SubMeshIdx++;
+            }
+        }
+    }
     for (const auto iter : TObjectRange<USceneComponent>())
     {
         AActor* SelectedActor = World->GetSelectedActor();
@@ -1038,7 +1069,7 @@ void FRenderer::PrepareRender()
             }
         }
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
-        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
+        /*else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
             if (!StaticMesh)
@@ -1063,7 +1094,7 @@ void FRenderer::PrepareRender()
                     SubMeshIdx++;
                 }
             }
-        }
+        }*/
         
         /* W04 - do not render those comps
         if (UBillboardComponent* pBillboardComp = Cast<UBillboardComponent>(iter))
