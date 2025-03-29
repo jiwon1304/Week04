@@ -7,7 +7,14 @@
 #include "World.h"
 #include "Actors/Player.h"
 
-extern UINT32 NumDisOccluded;
+UINT32 NumDisOccluded;
+LARGE_INTEGER CPUTime;
+LARGE_INTEGER GPUTime;
+float CPUElapsedTime;
+float GPUElapsedTime;
+LARGE_INTEGER TempTime;
+LARGE_INTEGER Frequency;
+float GPUQueryTime;
 
 // 싱글톤 인스턴스 반환
 Console& Console::GetInstance() {
@@ -50,7 +57,10 @@ void StatOverlay::Render(ID3D11DeviceContext* context, UINT width, UINT height)
                 frameCount = 0;
                 lastTime = currentTime;
             }
-            ImGui::Text("FPS: %.2f / NumDisOccluded : %d", fps, NumDisOccluded);
+            ImGui::Text("FPS: %.2f / NumAfterCulling : %d", fps, NumDisOccluded);
+            ImGui::Text("CPUTime : %.2f ms / GPURenderTime: %.2f ms / GPUQueryTime : %.2f ms", CPUElapsedTime * 1000.0f, (GPUElapsedTime - GPUQueryTime) * 1000.0f, GPUQueryTime * 1000.0f);
+            CPUElapsedTime = 0;
+            GPUElapsedTime = 0;
         }
 
         AEditorPlayer* player = GEngineLoop.GetWorld()->GetEditorPlayer();

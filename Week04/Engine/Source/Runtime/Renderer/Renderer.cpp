@@ -23,6 +23,14 @@
 #include "LevelEditor/SLevelEditor.h"
 #include "OctreeNode.h"
 
+extern LARGE_INTEGER CPUTime;
+extern LARGE_INTEGER GPUTime;
+extern float CPUElapsedTime;
+extern float GPUElapsedTime;
+extern LARGE_INTEGER TempTime;
+extern LARGE_INTEGER Frequency;
+extern float GPUQueryTime;
+
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
     Graphics = graphics;
@@ -1048,7 +1056,16 @@ void FRenderer::PrepareRender()
     Octree->FrustumCull(Frustum, Components);
 
     SortMeshRoughly(Components);
+    QueryPerformanceCounter(&TempTime);
+    CPUElapsedTime += static_cast<float>(TempTime.QuadPart - CPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    GPUTime = TempTime;
+
     QueryOcclusion();
+
+    QueryPerformanceCounter(&TempTime);
+    GPUQueryTime = static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    GPUElapsedTime += GPUQueryTime;
+    CPUTime = TempTime;
 
     AActor* SelectedActor = World->GetSelectedActor();
     
@@ -1146,6 +1163,9 @@ void FRenderer::ClearRenderArr()
 
 void FRenderer::Render()
 {
+    QueryPerformanceCounter(&TempTime);
+    CPUElapsedTime += static_cast<float>(TempTime.QuadPart - CPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    GPUTime = TempTime;
     
      Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행 -> depthbuffer추가로 필요
     
@@ -1174,6 +1194,9 @@ void FRenderer::Render()
     */
     
     ClearRenderArr();
+    QueryPerformanceCounter(&TempTime);
+    GPUElapsedTime += static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+    CPUTime = TempTime;
 }
 
 void FRenderer::RenderStaticMeshes()
@@ -1440,7 +1463,7 @@ void FRenderer::PrepareOcclusion()
 
 }
 
-UINT32 NumDisOccluded;
+extern UINT32 NumDisOccluded;
 
 void FRenderer::QueryOcclusion()
 {
@@ -1474,7 +1497,7 @@ void FRenderer::QueryOcclusion()
             while (Graphics->DeviceContext->GetData(Query, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {}
             if (pixelCount > 0) {
                 DisOccludedMeshes.Add(StaticMeshComp);
-                RenderOccludee(StaticMeshComp);
+                RenderOccluder(StaticMeshComp);
             }
             Queries.pop();
             QueryMeshes.pop();

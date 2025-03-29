@@ -13,6 +13,13 @@
 #include "UnrealEd\SceneMgr.h"
 #include "OctreeNode.h"
 
+extern LARGE_INTEGER CPUTime;
+extern LARGE_INTEGER GPUTime;
+extern float CPUElapsedTime;
+extern float GPUElapsedTime;
+extern LARGE_INTEGER TempTime;
+extern LARGE_INTEGER Frequency;
+
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -173,7 +180,6 @@ void FEngineLoop::Tick()
         TargetDeltaTime = 1000.0f / static_cast<double>(TargetFPS); // 1 FPS's target time (ms)
     }
 
-    LARGE_INTEGER Frequency;
     QueryPerformanceFrequency(&Frequency);
 
     LARGE_INTEGER StartTime;
@@ -186,6 +192,9 @@ void FEngineLoop::Tick()
         const LARGE_INTEGER EndTime = StartTime;
         QueryPerformanceCounter(&StartTime);
 
+        QueryPerformanceCounter(&TempTime);
+        CPUElapsedTime += static_cast<float>(TempTime.QuadPart - CPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
+        CPUTime = TempTime;
         ElapsedTime = static_cast<float>(StartTime.QuadPart - EndTime.QuadPart) / static_cast<float>(Frequency.QuadPart);
 
         MSG msg;
