@@ -7,27 +7,52 @@ struct FVector2D
 	float x,y;
 	FVector2D(float _x = 0, float _y = 0) : x(_x), y(_y) {}
 
-	FVector2D operator+(const FVector2D& rhs) const
+    FVector2D operator+(const FVector2D& rhs) const
 	{
-		return FVector2D(x + rhs.x, y + rhs.y);
+	    DirectX::XMFLOAT2 out;
+	    DirectX::XMStoreFloat2(&out,
+            DirectX::XMVectorAdd(
+                DirectX::XMVectorSet(x, y, 0.0f, 0.0f),
+                DirectX::XMVectorSet(rhs.x, rhs.y, 0.0f, 0.0f)
+            ));
+	    return FVector2D(out.x, out.y);
 	}
-	FVector2D operator-(const FVector2D& rhs) const
+	
+    FVector2D operator-(const FVector2D& rhs) const
 	{
-		return FVector2D(x - rhs.x, y - rhs.y);
+	    DirectX::XMFLOAT2 out;
+	    DirectX::XMStoreFloat2(&out,
+            DirectX::XMVectorSubtract(
+                DirectX::XMVectorSet(x, y, 0.0f, 0.0f),
+                DirectX::XMVectorSet(rhs.x, rhs.y, 0.0f, 0.0f)
+            ));
+	    return FVector2D(out.x, out.y);
 	}
-	FVector2D operator*(float rhs) const
+    
+    FVector2D operator*(float rhs) const
 	{
-		return FVector2D(x * rhs, y * rhs);
+	    DirectX::XMFLOAT2 out;
+	    DirectX::XMStoreFloat2(&out,
+            DirectX::XMVectorScale(
+                DirectX::XMVectorSet(x, y, 0.0f, 0.0f),
+                rhs));
+	    return FVector2D(out.x, out.y);
 	}
-	FVector2D operator/(float rhs) const
+
+    FVector2D operator/(float rhs) const
 	{
-		return FVector2D(x / rhs, y / rhs);
+	    DirectX::XMFLOAT2 out;
+	    DirectX::XMStoreFloat2(&out,
+            DirectX::XMVectorScale(
+                DirectX::XMVectorSet(x, y, 0.0f, 0.0f),
+                1.0f / rhs));
+	    return FVector2D(out.x, out.y);
 	}
-	FVector2D& operator+=(const FVector2D& rhs)
+
+    FVector2D& operator+=(const FVector2D& rhs)
 	{
-		x += rhs.x;
-		y += rhs.y;
-		return *this;
+	    *this = *this + rhs;
+	    return *this;
 	}
 };
 
@@ -37,49 +62,80 @@ struct FVector
     float x, y, z;
     FVector(float _x = 0, float _y = 0, float _z = 0) : x(_x), y(_y), z(_z) {}
 
-    FVector operator-(const FVector& other) const {
-        return FVector(x - other.x, y - other.y, z - other.z);
-    }
-    FVector operator+(const FVector& other) const {
-        return FVector(x + other.x, y + other.y, z + other.z);
-    }
-
-    // 벡터 내적
-    float Dot(const FVector& other) const {
-        return x * other.x + y * other.y + z * other.z;
-    }
-
-    // 벡터 크기
-    float Magnitude() const {
-        return sqrt(x * x + y * y + z * z);
-    }
-
-    // 벡터 정규화
-    FVector Normalize() const {
-        float mag = Magnitude();
-        return (mag > 0) ? FVector(x / mag, y / mag, z / mag) : FVector(0, 0, 0);
-    }
-    FVector Cross(const FVector& Other) const
+    FVector operator+(const FVector& other) const
     {
-        return FVector{
-            y * Other.z - z * Other.y,
-            z * Other.x - x * Other.z,
-            x * Other.y - y * Other.x
-        };
-    }
-    // 스칼라 곱셈
-    FVector operator*(float scalar) const {
-        return FVector(x * scalar, y * scalar, z * scalar);
+        DirectX::XMFLOAT3 out;
+        DirectX::XMStoreFloat3(&out,
+            DirectX::XMVectorAdd(
+                DirectX::XMVectorSet(x, y, z, 0.0f),
+                DirectX::XMVectorSet(other.x, other.y, other.z, 0.0f)
+            ));
+        return FVector(out.x, out.y, out.z);
     }
 
-    bool operator==(const FVector& other) const {
+    FVector operator-(const FVector& other) const
+    {
+        DirectX::XMFLOAT3 out;
+        DirectX::XMStoreFloat3(&out,
+            DirectX::XMVectorSubtract(
+                DirectX::XMVectorSet(x, y, z, 0.0f),
+                DirectX::XMVectorSet(other.x, other.y, other.z, 0.0f)
+            ));
+        return FVector(out.x, out.y, out.z);
+    }
+
+    float Dot(const FVector& other) const
+    {
+        DirectX::XMVECTOR v1 = DirectX::XMVectorSet(x, y, z, 0.0f);
+        DirectX::XMVECTOR v2 = DirectX::XMVectorSet(other.x, other.y, other.z, 0.0f);
+        return DirectX::XMVectorGetX(DirectX::XMVector3Dot(v1, v2));
+    }
+
+    float Magnitude() const
+    {
+        DirectX::XMVECTOR v = DirectX::XMVectorSet(x, y, z, 0.0f);
+        return DirectX::XMVectorGetX(DirectX::XMVector3Length(v));
+    }
+
+    FVector Normalize() const
+    {
+        DirectX::XMVECTOR v = DirectX::XMVectorSet(x, y, z, 0.0f);
+        DirectX::XMVECTOR norm = DirectX::XMVector3Normalize(v);
+        DirectX::XMFLOAT3 out;
+        DirectX::XMStoreFloat3(&out, norm);
+        return FVector(out.x, out.y, out.z);
+    }
+
+    FVector Cross(const FVector& other) const
+    {
+        DirectX::XMVECTOR v1 = DirectX::XMVectorSet(x, y, z, 0.0f);
+        DirectX::XMVECTOR v2 = DirectX::XMVectorSet(other.x, other.y, other.z, 0.0f);
+        DirectX::XMVECTOR cross = DirectX::XMVector3Cross(v1, v2);
+        DirectX::XMFLOAT3 out;
+        DirectX::XMStoreFloat3(&out, cross);
+        return FVector(out.x, out.y, out.z);
+    }
+
+    FVector operator*(float scalar) const
+    {
+        DirectX::XMFLOAT3 out;
+        DirectX::XMStoreFloat3(&out,
+            DirectX::XMVectorScale(
+                DirectX::XMVectorSet(x, y, z, 0.0f),
+                scalar));
+        return FVector(out.x, out.y, out.z);
+    }
+
+    bool operator==(const FVector& other) const
+    {
         return (x == other.x && y == other.y && z == other.z);
     }
 
-    float Distance(const FVector& other) const {
-        // 두 벡터의 차 벡터의 크기를 계산
+    float Distance(const FVector& other) const
+    {
         return ((*this - other).Magnitude());
     }
+
     DirectX::XMFLOAT3 ToXMFLOAT3() const
     {
         return DirectX::XMFLOAT3(x, y, z);
