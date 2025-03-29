@@ -11,14 +11,7 @@
 #include "Container/Set.h"
 
 // sorting
-#include <array>
-#include <queue>
-
-constexpr float OCCLUSION_DISTANCE_DIV = 1.1f;  // 적절한 초기값으로 초기화
-constexpr int OCCLUSION_DISTANCE_BIN_NUM = 49+1;  // log(1.2f)^100
-constexpr int OcclusionBufferSizeWidth = 256;
-constexpr int OcclusionBufferSizeHeight = 256;
-
+#include "Occlusion.h"
 
 class UStaticMesh;
 class ULightComponentBase;
@@ -32,6 +25,8 @@ class UBillboardComponent;
 class UStaticMeshComponent;
 class UPrimitiveComponent;
 class UGizmoBaseComponent;
+
+
 class FRenderer 
 {
 
@@ -213,52 +208,6 @@ private:
 
 private:
     TArray<UStaticMeshComponent*> FrustumMeshes;
-    std::array<TArray<UStaticMeshComponent*>, OCCLUSION_DISTANCE_BIN_NUM> MeshesSortedByDistance;
-    void SortMeshRoughly(TArray<UPrimitiveComponent*> InComponents);
-    //std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> ProcessChunk(TObjectIterator<UStaticMeshComponent> startIter, size_t endIdx);
-    //void ProcessMeshesInParallel();
-
-
-    TArray<UStaticMeshComponent*> DisOccludedMeshes;
-    //void OcclusionCulling();
-    //void OcclusionCullingGPU();
-    // TODO : Week04 SIMD 쓸때 사용
-    //std::array<uint32_t, OcclusionBufferSizeWidth/sizeof(uint32_t) * OcclusionBufferSizeHeight / sizeof(uint32_t)> OcclusionBuffer;
-    //std::array<bool, OcclusionBufferSizeWidth / sizeof(bool) * OcclusionBufferSizeHeight / sizeof(bool)> OcclusionBufferBinary;
-
-private:
-    void InitOcclusionQuery();
-    void PrepareOcclusion();
-    void QueryOcclusion();
-    ID3D11Query* OcclusionQuery = nullptr;
-    ID3D11Texture2D* OcclusionTexture = nullptr;
-    ID3D11DepthStencilView* OcclusionDSV = nullptr;
-
-    ID3D11DepthStencilState* OcclusionWriteZero = nullptr;
-    ID3D11DepthStencilState* OcclusionWriteAlways = nullptr;
-
-    //안씀
-    ID3D11ShaderResourceView* OcclusionSRV = nullptr;
-    ID3D11UnorderedAccessView* OcclusionUAV = nullptr;
-    ID3D11ComputeShader* OcclusionComputeShader = nullptr;
-    ID3D11Buffer* OcclusionBuffer = nullptr;
-
-    void RenderOccluder(UStaticMeshComponent* StaticMeshComp);
-    void RenderOccludee(UStaticMeshComponent* StaticMeshComp);
-    void RenderObjectsForOcclusionQuery(TArray<UStaticMeshComponent*> MeshComps);
-
-
-    void CreateOcclusionShader();
-    ID3D11VertexShader* OcclusionVertexShader = nullptr;
-    ID3D11PixelShader* OcclusionPixelShader = nullptr;
-
-    //ID3D11InputLayout* OcclusionInputLayout = nullptr;
-    ID3D11Buffer* OcclusionConstantBuffer = nullptr;
-    ID3D11Buffer* OcclusionObjectInfoBuffer = nullptr;
-
-    D3D11_QUERY_DESC queryDesc;
-    std::queue<ID3D11Query*> QueryPool;
-    std::queue<ID3D11Query*> Queries;
-    std::queue<UStaticMeshComponent*> QueryMeshes;
+    Occlusion OcclusionSystem;
 };
 
