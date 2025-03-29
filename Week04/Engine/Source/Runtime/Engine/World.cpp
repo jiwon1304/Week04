@@ -11,6 +11,7 @@
 #include "Math/JungleMath.h"
 #include "UnrealEd/EditorViewportClient.h"
 #include <UObject/UObjectIterator.h>
+#include "OctreeNode.h"
 
 
 void UWorld::Initialize(HWND hWnd)
@@ -30,12 +31,18 @@ void UWorld::Initialize(HWND hWnd)
         }
     }
 #endif
-    if (RootOctree == nullptr) {
+    
+    if (RootOctree == nullptr)
+    {
         RootOctree = std::make_unique<FOctreeNode>(FVector(-100, -100, -100), FVector(100, 100, 100));
     }
-    if (RootOctree) {
-        for (const auto& iter : TObjectRange<UPrimitiveComponent>()) {
-            if (iter) {
+    
+    if (RootOctree)
+    {
+        for (const auto& iter : TObjectRange<UPrimitiveComponent>())
+        {
+            if (iter)
+            {
                 RootOctree->Insert(iter);
             }
         }

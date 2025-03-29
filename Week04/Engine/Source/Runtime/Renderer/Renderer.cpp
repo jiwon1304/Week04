@@ -20,6 +20,7 @@
 #include "PropertyEditor/ShowFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/SkySphereComponent.h"
+#include "OctreeNode.h"
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -1027,20 +1028,35 @@ void FRenderer::RenderBatch(
 
 void FRenderer::PrepareRender()
 {
-    TArray<UPrimitiveComponent*> components;
     Frustum Frustum = ActiveViewport->GetFrustum();
-    FOctreeNode* octree = World->GetOctree();
-    uint32 componentCount = octree->CountAllComponents();
-    octree->FrustumCull(Frustum, components);
-    for (const auto comp : components) {
-        if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(comp)) {
+    FOctreeNode* Octree = World->GetOctree();
+
+    TArray<UPrimitiveComponent*> Components;
+    Octree->FrustumCull(Frustum, Components);
+
+    AActor* SelectedActor = World->GetSelectedActor();
+    
+    for (const auto& Comp : Components)
+    {
+        if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(Comp))
+        {
+            if (SelectedActor)
+            {
+                GizmoObjs.Add(pGizmoComp);
+            }
+        }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
+        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
+        {
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
             if (!StaticMesh)
             {
                 continue;
             }
-            FMeshData Data;
+            
             int SubMeshIdx = 0;
+            
+            FMeshData Data;
             Data.SubMeshIndex = SubMeshIdx;
             Data.WorldMatrix = JungleMath::CreateModelMatrix(
                 pStaticMeshComp->GetWorldLocation(),
@@ -1048,6 +1064,8 @@ void FRenderer::PrepareRender()
                 pStaticMeshComp->GetWorldScale()
             );
             Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+            Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+            
             for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
             {
                 UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
@@ -1058,63 +1076,13 @@ void FRenderer::PrepareRender()
             }
         }
     }
-    for (const auto iter : TObjectRange<USceneComponent>())
-    {
-        AActor* SelectedActor = World->GetSelectedActor();
-        if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
-        {
-            if (SelectedActor)
-            {
-                GizmoObjs.Add(pGizmoComp);
-            }
-        }
-        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
-        /*else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
-        {
-            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
-            if (!StaticMesh)
-            {
-                continue;
-            }
-            
-            if (IsInsideFrustum(pStaticMeshComp))
-            {
-                FMeshData Data;
-                int SubMeshIdx = 0;
-                Data.SubMeshIndex = SubMeshIdx;
-                Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
-                Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
-                Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
-                for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-                {
-                    UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-                    Data.IndexStart = subMesh.IndexStart;
-                    Data.IndexCount = subMesh.IndexCount;
-                    MaterialMeshMap[Material][StaticMesh].push_back(Data);
-                    SubMeshIdx++;
-                }
-            }
-        }*/
-        
-        /* W04 - do not render those comps
-        if (UBillboardComponent* pBillboardComp = Cast<UBillboardComponent>(iter))
-        {
-            BillboardObjs.Add(pBillboardComp);
-        }
-        if (ULightComponentBase* pLightComp = Cast<ULightComponentBase>(iter))
-        {
-            LightObjs.Add(pLightComp);
-        }
-        */
-    }
-    //std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
 }
 
 bool FRenderer::IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const
 {
     Frustum Frustum = ActiveViewport->GetFrustum();
     FVector Location = StaticMeshComp->GetWorldLocation();
-    FBoundingBox AABB = StaticMeshComp->AABB;
+    FBoundingBox AABB = StaticMeshComp->LocalAABB;
     AABB.min = AABB.min + Location;
     AABB.max = AABB.max + Location;
     /*TArray<FVector> vertices = aabb.GetVertices();

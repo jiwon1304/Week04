@@ -29,7 +29,7 @@ public:
     { 
         staticMesh = value;
         OverrideMaterials.SetNum(value->GetMaterials().Num());
-        AABB = FBoundingBox(staticMesh->GetRenderData()->BoundingBoxMin, staticMesh->GetRenderData()->BoundingBoxMax);
+        LocalAABB = FBoundingBox(staticMesh->GetRenderData()->BoundingBoxMin, staticMesh->GetRenderData()->BoundingBoxMax);
     }
 
     FMatrix GetWorldMatrix() const { return W04WorldMatrix; }

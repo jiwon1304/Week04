@@ -102,9 +102,9 @@ struct FMatrix
 
     static FMatrix CreateRotation(float roll, float pitch, float yaw)
     {
-        float radRoll = roll * (3.14159265359f / 180.0f);
-        float radPitch = pitch * (3.14159265359f / 180.0f);
-        float radYaw = yaw * (3.14159265359f / 180.0f);
+        float radRoll = XMConvertToRadians(roll);
+        float radPitch = XMConvertToRadians(pitch);
+        float radYaw = XMConvertToRadians(yaw);
 
         float cosRoll = cos(radRoll), sinRoll = sin(radRoll);
         float cosPitch = cos(radPitch), sinPitch = sin(radPitch);
