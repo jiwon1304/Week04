@@ -9,6 +9,7 @@
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
 #include "UnrealEd/EditorViewportClient.h"
+#include <UObject/UObjectIterator.h>
 
 
 void UWorld::Initialize(HWND hWnd)
@@ -28,6 +29,12 @@ void UWorld::Initialize(HWND hWnd)
         }
     }
 #endif
+    if (RootOctree == nullptr) {
+        RootOctree = std::make_unique<FOctreeNode>(FVector(-100, -100, -100), FVector(100, 100, 100));
+    }
+    for (const auto& iter : TObjectRange<UPrimitiveComponent>()) {
+        RootOctree->Insert(iter);
+    }
 }
 
 void UWorld::CreateBaseObject(HWND hWnd)

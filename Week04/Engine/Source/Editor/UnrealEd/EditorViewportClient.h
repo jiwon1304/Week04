@@ -89,110 +89,11 @@ struct Plane {
 struct Frustum {
     Plane planes[6]; //좌우 상하 near far
 
-    void CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio) {
-        FVector normal;
-        float d;
+    void CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio);
 
-        FVector point = camera.GetLocation();
-        FVector forward = camera.GetForwardVector();
-        FVector up = camera.GetUpVector();
-        FVector right = camera.GetRightVector();
+    void CreatePlaneWithMatrix(FMatrix viewProj);
 
-        fov = fov * PI / 180.0f;
-        float halfFOV = fov / 2.0f;
-        float tanFOV = tanf(halfFOV);
-        float nearHeight = tanFOV * nearZ;
-        float nearWidth = nearHeight * aspectRatio;
-        float farHeight = tanFOV * farZ;
-        float farWidth = farHeight * aspectRatio;
-        FVector nearPoint = point + forward * nearZ;
-        FVector farPoint = point + forward * farZ;
-
-        FVector leftNear = (nearPoint - right * nearWidth) - point;
-        FVector leftFar = (farPoint - right * farWidth) - point;
-        FVector leftDir = leftFar - leftNear;
-        normal = up.Cross(leftDir).Normalize();
-        d = -1.0f * normal.Dot(point);
-        planes[0].normal = normal;
-        planes[0].d = d;
-
-        FVector rightNear = (nearPoint + right * nearWidth) - point;
-        FVector rightFar = (farPoint + right * farWidth) - point;
-        FVector rightDir = rightFar - rightNear;
-        normal = rightDir.Cross(up).Normalize();
-        d = -1.0f * normal.Dot(point);
-        planes[1].normal = normal;
-        planes[1].d = d;
-
-        FVector upNear = (nearPoint + up * nearHeight) - point;
-        FVector upFar = (farPoint + up * farHeight) - point;
-        FVector upDir = upFar - upNear;
-        normal = right.Cross(upDir).Normalize();
-        d = -1.0f * normal.Dot(point);
-        planes[2].normal = normal;
-        planes[2].d = d;
-
-        FVector downNear = (nearPoint - up * nearHeight) - point;
-        FVector downFar = (farPoint - up * farHeight) - point;
-        FVector downDir = downFar - downNear;
-        normal = downDir.Cross(right).Normalize();
-        d = -1.0f * normal.Dot(point);
-        planes[3].normal = normal;
-        planes[3].d = d;
-
-        normal = forward;
-        point = nearPoint;
-        d = -1.0f * normal.Dot(point);
-        planes[4].normal = normal;
-        planes[4].d = d;
-
-        normal = forward * -1.0f;
-        point = farPoint;
-        d = -1.0f * normal.Dot(point);
-        planes[5].normal = normal;
-        planes[5].d = d;
-    }
-
-    FVector IntersectThreePlanes(const Plane& p1, const Plane& p2, const Plane& p3)
-    {
-        const FVector& n1 = p1.normal;
-        const FVector& n2 = p2.normal;
-        const FVector& n3 = p3.normal;
-
-        float det = n1.Dot(n2.Cross(n3));
-        if (abs(det) < KINDA_SMALL_NUMBER)
-        {
-            return FVector::ZeroVector; // 평면들이 평행하거나 일치 → 교점 없음
-        }
-
-        FVector result =
-            (n2.Cross(n3) * (-p1.d) +
-                n3.Cross(n1) * (-p2.d) +
-                n1.Cross(n2) * (-p3.d)) * (1.0f / det);
-
-        return result;
-    }
-
-    TArray<FVector> ExtractFrustumCorners()
-    {
-        enum { Left = 0, Right, Bottom, Top, Near, Far };
-
-        TArray<FVector> outCorners;
-
-        // Near plane corners
-        outCorners.Add(IntersectThreePlanes(planes[Left], planes[Bottom], planes[Near])); // Near Bottom Left
-        outCorners.Add(IntersectThreePlanes(planes[Left], planes[Top], planes[Near])); // Near Top Left
-        outCorners.Add(IntersectThreePlanes(planes[Right], planes[Bottom], planes[Near])); // Near Bottom Right
-        outCorners.Add(IntersectThreePlanes(planes[Right], planes[Top], planes[Near])); // Near Top Right
-
-        // Far plane corners
-        outCorners.Add(IntersectThreePlanes(planes[Left], planes[Bottom], planes[Far])); // Far Bottom Left
-        outCorners.Add(IntersectThreePlanes(planes[Left], planes[Top], planes[Far])); // Far Top Left
-        outCorners.Add(IntersectThreePlanes(planes[Right], planes[Bottom], planes[Far])); // Far Bottom Right
-        outCorners.Add(IntersectThreePlanes(planes[Right], planes[Top], planes[Far])); // Far Top Right
-
-        return outCorners;
-    }
+    bool Intersects(FBoundingBox box);
 };
 
 class FEditorViewportClient : public FViewportClient

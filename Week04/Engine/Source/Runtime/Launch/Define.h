@@ -175,6 +175,20 @@ struct FBoundingBox
 	float pad;
 	FVector max; // Maximum extents
 	float pad1;
+
+    FVector GetCenter() {
+        return (max + min) * 0.5f;
+    }
+    FVector GetExtent() {
+        return (max - min) * 0.5f;
+    }
+    bool IntersectsAABB(const FBoundingBox& other) const {
+        return !(
+            other.max.x < min.x || other.min.x > max.x ||
+            other.max.y < min.y || other.min.y > max.y ||
+            other.max.z < min.z || other.min.z > max.z
+            );
+    }
     bool Intersect(const FVector& rayOrigin, const FVector& rayDir, float& outDistance)
     {
         float tmin = -FLT_MAX;

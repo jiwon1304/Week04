@@ -313,6 +313,8 @@ void FEditorViewportClient::UpdateProjectionMatrix()
 
 void FEditorViewportClient::UpdateFrustum()
 {
+    FMatrix viewProj = View * Projection;
+    //CameraFrustum.CreatePlaneWithMatrix(viewProj);
     CameraFrustum.CreatePlane(ViewTransformPerspective, ViewFOV, nearPlane, farPlane, AspectRatio);
 }
 
@@ -487,4 +489,153 @@ FVector FViewportCameraTransform::GetUpVector()
 
 FViewportCameraTransform::FViewportCameraTransform()
 {
+}
+
+void Frustum::CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio)
+{
+    FVector normal;
+    float d;
+
+    FVector point;
+    FVector cameraPos = camera.GetLocation();
+    FVector forward = camera.GetForwardVector();
+    FVector up = camera.GetUpVector();
+    FVector right = camera.GetRightVector();
+
+    fov = fov * PI / 180.0f;
+    float halfFOV = fov / 2.0f;
+    float tanFOV = tanf(halfFOV);
+    float nearHeight = tanFOV * nearZ;
+    float nearWidth = nearHeight * aspectRatio;
+    float farHeight = tanFOV * farZ;
+    float farWidth = farHeight * aspectRatio;
+    FVector nearPoint = cameraPos + forward * nearZ;
+    FVector farPoint = cameraPos + forward * farZ;
+
+    FVector leftNear = (nearPoint - right * nearWidth) - cameraPos;
+    FVector leftFar = (farPoint - right * farWidth) - cameraPos;
+    FVector leftDir = leftFar - leftNear;
+    normal = up.Cross(leftDir).Normalize();
+    point = cameraPos;
+    d = -1.0f * normal.Dot(point);
+    planes[0].normal = normal;
+    planes[0].d = d;
+
+    FVector rightNear = (nearPoint + right * nearWidth) - cameraPos;
+    FVector rightFar = (farPoint + right * farWidth) - cameraPos;
+    FVector rightDir = rightFar - rightNear;
+    normal = rightDir.Cross(up).Normalize();
+    d = -1.0f * normal.Dot(point);
+    planes[1].normal = normal;
+    planes[1].d = d;
+
+    FVector upNear = (nearPoint + up * nearHeight) - cameraPos;
+    FVector upFar = (farPoint + up * farHeight) - cameraPos;
+    FVector upDir = upFar - upNear;
+    normal = right.Cross(upDir).Normalize();
+    d = -1.0f * normal.Dot(point);
+    planes[2].normal = normal;
+    planes[2].d = d;
+
+    FVector downNear = (nearPoint - up * nearHeight) - cameraPos;
+    FVector downFar = (farPoint - up * farHeight) - cameraPos;
+    FVector downDir = downFar - downNear;
+    normal = downDir.Cross(right).Normalize();
+    d = -1.0f * normal.Dot(point);
+    planes[3].normal = normal;
+    planes[3].d = d;
+
+    normal = forward;
+    point = nearPoint;
+    d = -1.0f * normal.Dot(point);
+    planes[4].normal = normal;
+    planes[4].d = d;
+
+    normal = forward * -1.0f;
+    point = farPoint;
+    d = -1.0f * normal.Dot(point);
+    planes[5].normal = normal;
+    planes[5].d = d;
+}
+
+void Frustum::CreatePlaneWithMatrix(FMatrix viewProjec)
+{
+    float a, b, c, d;
+    FVector normal;
+    float length;
+
+    a = viewProjec.M[3][0] + viewProjec.M[0][0];
+    b = viewProjec.M[3][1] + viewProjec.M[0][1];
+    c = viewProjec.M[3][2] + viewProjec.M[0][2];
+    d = viewProjec.M[3][3] + viewProjec.M[0][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[0].normal = normal;
+    planes[0].d = d;
+
+    a = viewProjec.M[3][0] - viewProjec.M[0][0];
+    b = viewProjec.M[3][1] - viewProjec.M[0][1];
+    c = viewProjec.M[3][2] - viewProjec.M[0][2];
+    d = viewProjec.M[3][3] - viewProjec.M[0][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[1].normal = normal;
+    planes[1].d = d;
+
+    a = viewProjec.M[3][0] + viewProjec.M[1][0];
+    b = viewProjec.M[3][1] + viewProjec.M[1][1];
+    c = viewProjec.M[3][2] + viewProjec.M[1][2];
+    d = viewProjec.M[3][3] + viewProjec.M[1][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[2].normal = normal;
+    planes[2].d = d;
+
+    a = viewProjec.M[3][0] - viewProjec.M[1][0];
+    b = viewProjec.M[3][1] - viewProjec.M[1][1];
+    c = viewProjec.M[3][2] - viewProjec.M[1][2];
+    d = viewProjec.M[3][3] - viewProjec.M[1][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[3].normal = normal;
+    planes[3].d = d;
+
+    a = viewProjec.M[3][0] + viewProjec.M[2][0];
+    b = viewProjec.M[3][1] + viewProjec.M[2][1];
+    c = viewProjec.M[3][2] + viewProjec.M[2][2];
+    d = viewProjec.M[3][3] + viewProjec.M[2][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[4].normal = normal;
+    planes[4].d = d;
+
+    a = viewProjec.M[3][0] - viewProjec.M[2][0];
+    b = viewProjec.M[3][1] - viewProjec.M[2][1];
+    c = viewProjec.M[3][2] - viewProjec.M[2][2];
+    d = viewProjec.M[3][3] - viewProjec.M[2][3];
+    length = sqrtf(a * a + b * b + c * c);
+    normal = FVector{ a,b,c } *(1.0f / length);
+    d /= length;
+    planes[5].normal = normal;
+    planes[5].d = d;
+}
+
+bool Frustum::Intersects(FBoundingBox box)
+{
+    for (int i = 0; i < 6; ++i)
+    {
+        const Plane& Plane = planes[i];
+        FVector PositiveVector = box.GetPositiveVertex(Plane.normal);
+        float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
+        if (Dist < 0)
+        {
+            return false;
+        }
+    }
+    return true;
 }

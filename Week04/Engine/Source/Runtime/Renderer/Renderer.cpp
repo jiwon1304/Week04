@@ -1001,6 +1001,7 @@ void FRenderer::PrepareRender()
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
+<<<<<<< Updated upstream
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
             if (!StaticMesh)
             {
@@ -1009,6 +1010,35 @@ void FRenderer::PrepareRender()
             
             if (IsInsideFrustum(pStaticMeshComp))
             {
+=======
+            bool bIsInsideFrustum = true;
+            Frustum frustum = ActiveViewport->GetFrustum();
+            FBoundingBox aabb = pStaticMeshComp->GetBoundingBox();
+            /*TArray<FVector> vertices = aabb.GetVertices();
+            for (const FVector& vertex : vertices) {
+                for (int i = 0; i < 6; i++) {
+                    Plane& plane = frustum.planes[i];
+                    float dist = vertex.Dot(plane.normal) + plane.d;
+                    if (dist < 0) {
+                        bIsInsideFrustum = false;
+                        break;
+                    }
+                }
+                if (!bIsInsideFrustum)
+                    break;
+            }*/
+            for (int i = 0; i < 6; i++) {
+                Plane& plane = frustum.planes[i];
+                FVector p = aabb.GetPositiveVertex(plane.normal);
+                float dist = p.Dot(plane.normal) + plane.d;
+                if (dist < 0) {
+                    bIsInsideFrustum = false;
+                    break;
+                }
+            }
+            int SubMeshIdx = 0;
+            if (bIsInsideFrustum) {
+>>>>>>> Stashed changes
                 FMeshData Data;
                 int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
