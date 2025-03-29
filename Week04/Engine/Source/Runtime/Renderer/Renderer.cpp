@@ -1357,8 +1357,8 @@ void FRenderer::SortMeshRoughly()
 void FRenderer::InitOcclusionQuery()
 {
     D3D11_TEXTURE2D_DESC DepthStencilBufferDesc = {};
-    DepthStencilBufferDesc.Width = 512;
-    DepthStencilBufferDesc.Height = 512;
+    DepthStencilBufferDesc.Width = 1024;
+    DepthStencilBufferDesc.Height = 1024;
     DepthStencilBufferDesc.MipLevels = 1;
     DepthStencilBufferDesc.ArraySize = 1;
     DepthStencilBufferDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
@@ -1390,13 +1390,25 @@ void FRenderer::InitOcclusionQuery()
 
     hr = Graphics->Device->CreateShaderResourceView(OcclusionTexture, &depthSRVDesc, &OcclusionSRV);
 
-    D3D11_QUERY_DESC queryDesc = {};
+    queryDesc = {};
     queryDesc.Query = D3D11_QUERY_OCCLUSION; // Occlusion Query 사용
     queryDesc.MiscFlags = 0;
 
-    hr = Graphics->Device->CreateQuery(&queryDesc, &OcclusionQuery);
-    if (FAILED(hr)) {
-        std::cerr << "Failed to create Occlusion Query!" << std::endl;
+    //hr = Graphics->Device->CreateQuery(&queryDesc, &OcclusionQuery);
+    //if (FAILED(hr)) {
+    //    std::cerr << "Failed to create Occlusion Query!" << std::endl;
+    //}
+    const int numQueries = 2000;
+    for (int i = 0; i < numQueries; ++i)
+    {
+        ID3D11Query* Query;
+        HRESULT hr = Graphics->Device->CreateQuery(&queryDesc, &Query);
+        if (FAILED(hr))
+        {
+            std::cerr << "Failed to create Occlusion Query!" << std::endl;
+            continue;
+        }
+        QueryPool.push(Query);
     }
 }
 
@@ -1406,8 +1418,8 @@ void FRenderer::PrepareOcclusion()
     D3D11_VIEWPORT Viewport = {};
     Viewport.TopLeftX = 0;
     Viewport.TopLeftY = 0;
-    Viewport.Width = 512;
-    Viewport.Height = 512;
+    Viewport.Width = 1024;
+    Viewport.Height = 1024;
     Viewport.MinDepth = 0.0f;
     Viewport.MaxDepth = 1.0f;
     Graphics->DeviceContext->RSSetViewports(1, &Viewport);
@@ -1445,37 +1457,81 @@ void FRenderer::QueryOcclusion()
         constants->CameraPos = CameraLocation;
     }
     Graphics->DeviceContext->Unmap(OcclusionConstantBuffer, 0);
-
     // 가까운거부터
+    int count = 0;
     for (auto& Meshes : MeshesSortedByDistance)
     {
-        for (auto& StaticMeshComp : Meshes)
+        while (!Queries.empty())
         {
-            //RenderOccluder(StaticMeshComp);
-            //DisOccludedMeshes.Add(StaticMeshComp);
-            //continue;
-
-            Graphics->DeviceContext->Begin(OcclusionQuery);
-            RenderOccluder(StaticMeshComp);
-
-            //// Draw
-            ////Graphics->DeviceContext->DrawIndexed(StaticMeshComp->GetStaticMesh()->GetRenderData()->Indices.Num(), 0, 0);
-            Graphics->DeviceContext->End(OcclusionQuery);
-
+            ID3D11Query* Query = Queries.front();
+            UStaticMeshComponent* StaticMeshComp = QueryMeshes.front();
             UINT64 pixelCount = 0;
-
-            //// GPU가 작업을 끝낼 때까지 대기
-            while (Graphics->DeviceContext->GetData(OcclusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {
-                 //계속 대기 (Sleep을 넣어서 CPU 과부하 방지 가능)
-            }
-
-            //// pixelCount가 0이면 오브젝트는 완전히 가려짐
+            while (Graphics->DeviceContext->GetData(Query, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {}
             if (pixelCount > 0) {
                 DisOccludedMeshes.Add(StaticMeshComp);
-                RenderOccludee(StaticMeshComp);
+                RenderOccluder(StaticMeshComp);
             }
-            
+            Queries.pop();
+            QueryMeshes.pop();
+            QueryPool.push(Query);
         }
+
+        for (auto& StaticMeshComp : Meshes)
+        {
+            ID3D11Query* Query;
+            if (!QueryPool.empty())
+            {
+                Query = QueryPool.front();
+                QueryPool.pop();
+            }
+            else
+            {
+                break;
+                HRESULT hr = Graphics->Device->CreateQuery(&queryDesc, &Query);
+                if (FAILED(hr))
+                {
+                    std::cerr << "Failed to create Occlusion Query!" << std::endl;
+                    continue;
+                }
+                QueryPool.push(Query);
+            }
+            Graphics->DeviceContext->Begin(Query);
+            RenderOccludee(StaticMeshComp);
+            Graphics->DeviceContext->End(Query);
+            Queries.push(Query);
+            QueryMeshes.push(StaticMeshComp);
+        }
+
+
+
+        //for (auto& StaticMeshComp : Meshes)
+        //{
+        //    //continue;
+        //    //RenderOccluder(StaticMeshComp);
+        //    //DisOccludedMeshes.Add(StaticMeshComp);
+        //    //continue;
+
+        //    Graphics->DeviceContext->Begin(OcclusionQuery);
+        //    RenderOccluder(StaticMeshComp);
+
+        //    //// Draw
+        //    ////Graphics->DeviceContext->DrawIndexed(StaticMeshComp->GetStaticMesh()->GetRenderData()->Indices.Num(), 0, 0);
+        //    Graphics->DeviceContext->End(OcclusionQuery);
+
+        //    UINT64 pixelCount = 0;
+
+        //    //// GPU가 작업을 끝낼 때까지 대기
+        //    while (Graphics->DeviceContext->GetData(OcclusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {
+        //         //계속 대기 (Sleep을 넣어서 CPU 과부하 방지 가능)
+        //    }
+
+        //    //// pixelCount가 0이면 오브젝트는 완전히 가려짐
+        //    if (pixelCount > 0) {
+        //        DisOccludedMeshes.Add(StaticMeshComp);
+        //        RenderOccludee(StaticMeshComp);
+        //    }
+        //    
+        //}
     }
     NumDisOccluded = DisOccludedMeshes.Num();
 
