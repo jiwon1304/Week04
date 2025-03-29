@@ -199,8 +199,8 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
     UINT offset = 0;
     Graphics->DeviceContext->IASetVertexBuffers(0, 1, &renderData->VertexBuffer, &Stride, &offset);
 
-    // if (renderData->IndexBuffer)
-    //     Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    if (renderData->IndexBuffer)
+        Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
     if (renderData->MaterialSubsets.Num() == 0)
     {
@@ -210,12 +210,12 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
 
     for (int subMeshIndex = 0; subMeshIndex < renderData->MaterialSubsets.Num(); subMeshIndex++)
     {
-        // int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
+        int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
 
         subMeshIndex == selectedSubMeshIndex ? UpdateSubMeshConstant(true) : UpdateSubMeshConstant(false);
 
-        // overrideMaterial[materialIndex] != nullptr ? 
-            // UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
+        overrideMaterial[materialIndex] != nullptr ? 
+            UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
 
         if (renderData->IndexBuffer)
         {
@@ -994,9 +994,13 @@ void FRenderer::PrepareRender()
 {
     for (const auto iter : TObjectRange<USceneComponent>())
     {
+        AActor* SelectedActor = World->GetSelectedActor();
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
         {
-            GizmoObjs.Add(pGizmoComp);
+            if (SelectedActor)
+            {
+                GizmoObjs.Add(pGizmoComp);
+            }
         }
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
@@ -1012,12 +1016,9 @@ void FRenderer::PrepareRender()
                 FMeshData Data;
                 int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
-                Data.WorldMatrix = JungleMath::CreateModelMatrix(
-                    pStaticMeshComp->GetWorldLocation(),
-                    pStaticMeshComp->GetWorldRotation(),
-                    pStaticMeshComp->GetWorldScale()
-                );
+                Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
                 Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+                Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
                 for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
                 {
                     UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
@@ -1125,44 +1126,6 @@ void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
 
-    /*
-    UMaterial* prevMaterial = nullptr;
-    
-    for (MeshMaterialPair data : SortedStaticMeshObjs)
-    {
-        UStaticMeshComponent* StaticMeshComp = data.mesh;
-        
-        if (!StaticMeshComp->GetStaticMesh()) continue;
-
-        OBJ::FStaticMeshRenderData* renderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
-        if (renderData == nullptr) continue;
-
-        FMatrix Model = JungleMath::CreateModelMatrix(
-            StaticMeshComp->GetWorldLocation(),
-            StaticMeshComp->GetWorldRotation(),
-            StaticMeshComp->GetWorldScale()
-        );
-        // 최종 MVP 행렬
-        FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
-        FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
-        UpdateConstant(MVP, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
-        
-        if (prevMaterial != data.material)
-        {
-            UINT offset = 0;
-            auto renderData = data.mesh->GetStaticMesh()->GetRenderData();
-            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &renderData->VertexBuffer, &Stride, &offset);
-
-            if (renderData->IndexBuffer)
-                Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-            UpdateMaterial(data.material->GetMaterialInfo());
-            prevMaterial = data.material;
-        }
-    
-        RenderPrimitive(renderData, StaticMeshComp->GetStaticMesh()->GetMaterials(), StaticMeshComp->GetOverrideMaterials(), StaticMeshComp->GetselectedSubMeshIndex());
-    }
-    */
-    
     for (auto& [Material, DataMap] : MaterialMeshMap)
     {
         // 이번에 사용하는 머티리얼을 GPU로 전달
@@ -1299,14 +1262,4 @@ void FRenderer::RenderLight()
         UPrimitiveBatch::GetInstance().AddCone(Light->GetWorldLocation(), Light->GetRadius(), 15, 140, Light->GetColor(), Model);
         UPrimitiveBatch::GetInstance().RenderOBB(Light->GetBoundingBox(), Light->GetWorldLocation(), Model);
     }
-}
-
-bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b)
-{
-    // 1차: 텍스처 세트 ID
-    if (a.material->GetFName().GetDisplayIndex() != b.material->GetFName().GetDisplayIndex())
-        return a.material->GetFName().GetDisplayIndex() < b.material->GetFName().GetDisplayIndex();
-        
-    // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
-    return a.mesh < b.mesh;
 }

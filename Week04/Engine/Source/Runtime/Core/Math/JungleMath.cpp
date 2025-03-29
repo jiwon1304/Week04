@@ -58,40 +58,61 @@ FVector JungleMath::FVectorRotate(FVector & origin, const FVector & rotation)
     return quaternion.RotateVector(origin);
 }
 
-FQuat JungleMath::EulerToQuaternion(const FVector & eulerDegrees)
+FQuat JungleMath::EulerToQuaternion(const FVector& eulerDegrees)
 {
-    float radRoll = DegToRad(eulerDegrees.x);
-    float radPitch = DegToRad(eulerDegrees.y);
-    float radYaw = DegToRad(eulerDegrees.z);
-    XMVECTOR q = XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
-    return FQuat::FromSIMD(q);
+    float yaw = XMConvertToRadians(eulerDegrees.z);   // Z축 Yaw
+    float pitch = XMConvertToRadians(eulerDegrees.y); // Y축 Pitch
+    float roll = XMConvertToRadians(eulerDegrees.x);  // X축 Roll
+
+    float halfYaw = yaw * 0.5f;
+    float halfPitch = pitch * 0.5f;
+    float halfRoll = roll * 0.5f;
+
+    float cosYaw = cos(halfYaw);
+    float sinYaw = sin(halfYaw);
+    float cosPitch = cos(halfPitch);
+    float sinPitch = sin(halfPitch);
+    float cosRoll = cos(halfRoll);
+    float sinRoll = sin(halfRoll);
+
+    FQuat quat;
+    quat.w = cosYaw * cosPitch * cosRoll + sinYaw * sinPitch * sinRoll;
+    quat.x = cosYaw * cosPitch * sinRoll - sinYaw * sinPitch * cosRoll;
+    quat.y = cosYaw * sinPitch * cosRoll + sinYaw * cosPitch * sinRoll;
+    quat.z = sinYaw * cosPitch * cosRoll - cosYaw * sinPitch * sinRoll;
+
+    return quat.Normalize();
 }
 
-FVector JungleMath::QuaternionToEuler(const FQuat & quat)
+FVector JungleMath::QuaternionToEuler(const FQuat& quat)
 {
+    FVector euler;
+
+    // 쿼터니언 정규화
     FQuat q = quat;
     q = q.Normalize();
-    
-    FVector euler;
-    
+
+    // Yaw (Z 축 회전)
     float sinYaw = 2.0f * (q.w * q.z + q.x * q.y);
     float cosYaw = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
-    euler.z = RadToDeg(atan2(sinYaw, cosYaw));
-    
+    euler.z = XMConvertToDegrees(atan2(sinYaw, cosYaw));
+
+    // Pitch (Y 축 회전, 짐벌락 방지)
     float sinPitch = 2.0f * (q.w * q.y - q.z * q.x);
     if (fabs(sinPitch) >= 1.0f)
     {
-        euler.y = RadToDeg(copysign(3.14159265359f / 2.0f, sinPitch));
+        euler.y = XMConvertToDegrees(static_cast<float>(copysign(PI / 2, sinPitch))); // 🔥 Gimbal Lock 방지
     }
     else
     {
-        euler.y = RadToDeg(asin(sinPitch));
+        euler.y = XMConvertToDegrees(asin(sinPitch));
     }
-    
+
+    // Roll (X 축 회전)
     float sinRoll = 2.0f * (q.w * q.x + q.y * q.z);
     float cosRoll = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
-    euler.x = RadToDeg(atan2(sinRoll, cosRoll));
-    
+    euler.x = XMConvertToDegrees(atan2(sinRoll, cosRoll));
+
     return euler;
 }
 
@@ -102,20 +123,22 @@ FVector JungleMath::FVectorRotate(FVector & origin, const FQuat & rotation)
 
 FMatrix JungleMath::CreateRotationMatrix(FVector rotation)
 {
-    float radRoll = DegToRad(rotation.x);
-    float radPitch = DegToRad(rotation.y);
-    float radYaw = DegToRad(rotation.z);
-    XMVECTOR q = XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
-    XMMATRIX rotationMatrix = XMMatrixRotationQuaternion(q);
-    return FMatrix::FromXMMATRIX(rotationMatrix);
-}
+    XMVECTOR quatX = XMQuaternionRotationAxis(XMVectorSet(1, 0, 0, 0), XMConvertToRadians(rotation.x));
+    XMVECTOR quatY = XMQuaternionRotationAxis(XMVectorSet(0, 1, 0, 0), XMConvertToRadians(rotation.y));
+    XMVECTOR quatZ = XMQuaternionRotationAxis(XMVectorSet(0, 0, 1, 0), XMConvertToRadians(rotation.z));
 
-float JungleMath::RadToDeg(float radian)
-{
-    return radian * (180.0f / 3.14159265359f);
-}
+    XMVECTOR rotationQuat = XMQuaternionMultiply(quatZ, XMQuaternionMultiply(quatY, quatX));
+    rotationQuat = XMQuaternionNormalize(rotationQuat);  // 정규화 필수
 
-float JungleMath::DegToRad(float degree)
-{
-    return degree * (3.14159265359f / 180.0f);
+    XMMATRIX rotationMatrix = XMMatrixRotationQuaternion(rotationQuat);
+    FMatrix result = FMatrix::Identity;  // 기본값 설정 (단위 행렬)
+
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            result.M[i][j] = rotationMatrix.r[i].m128_f32[j];  // XMMATRIX에서 FMatrix로 값 복사
+        }
+    }
+    return result;
 }
