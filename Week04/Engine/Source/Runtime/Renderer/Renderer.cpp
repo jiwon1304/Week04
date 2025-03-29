@@ -1005,6 +1005,22 @@ void FRenderer::PrepareRender()
             Frustum frustum = ActiveViewport->GetFrustum();
             FVector pos = pStaticMeshComp->GetWorldLocation();
             FBoundingBox aabb = pStaticMeshComp->AABB;
+            FVector scale = pStaticMeshComp->GetWorldScale();
+            FVector rotation = pStaticMeshComp->GetWorldRotation();
+            if (scale != FVector(1.0f, 1.0f, 1.0f)) {
+                FVector center = (aabb.min + aabb.max) * 0.5f;
+                FVector extent = (aabb.max - aabb.min) * 0.5f;
+                extent.x *= scale.x;
+                extent.y *= scale.y;
+                extent.z *= scale.z;
+                aabb.min = center - extent;
+                aabb.max = center + extent;
+            }
+            if (rotation != FVector(0.0f, 0.0f, 0.0f)) {
+                FMatrix Rotation = FMatrix::CreateRotation(rotation.x, rotation.y, rotation.z);
+                Rotation.TransformPosition(aabb.min);
+                Rotation.TransformPosition(aabb.max);
+            }
             aabb.min = aabb.min + pos;
             aabb.max = aabb.max + pos;
             /*TArray<FVector> vertices = aabb.GetVertices();
