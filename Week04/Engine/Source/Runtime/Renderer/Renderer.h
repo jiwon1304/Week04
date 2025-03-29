@@ -14,8 +14,8 @@
 #include <array>
 #include <queue>
 
-constexpr float OCCLUSION_DISTANCE_DIV = 2.f;  // 적절한 초기값으로 초기화
-constexpr int OCCLUSION_DISTANCE_BIN_NUM = 7;  // +1 : 나눗셈 나머지;
+constexpr float OCCLUSION_DISTANCE_DIV = 1.1f;  // 적절한 초기값으로 초기화
+constexpr int OCCLUSION_DISTANCE_BIN_NUM = 49+1;  // log(1.2f)^100
 constexpr int OcclusionBufferSizeWidth = 256;
 constexpr int OcclusionBufferSizeHeight = 256;
 
@@ -223,6 +223,9 @@ private:
     ID3D11Query* OcclusionQuery = nullptr;
     ID3D11Texture2D* OcclusionTexture = nullptr;
     ID3D11DepthStencilView* OcclusionDSV = nullptr;
+
+    ID3D11DepthStencilState* OcclusionWriteZero = nullptr;
+    ID3D11DepthStencilState* OcclusionWriteAlways = nullptr;
 
     //안씀
     ID3D11ShaderResourceView* OcclusionSRV = nullptr;

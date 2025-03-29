@@ -23,20 +23,44 @@ struct PS_INPUT
     float4 position : SV_POSITION; // 변환된 화면 좌표
 };
 
-//// 정점 인덱스에 따라 Quad 정점 좌표 생성
-//const float2 QuadPos[6] =
-//{
-//    float2(-1, -1), float2(1, -1), float2(-1, 1), // 첫 번째 삼각형
-//    float2(-1, 1), float2(1, -1), float2(1, 1) // 두 번째 삼각형
-//};
+// 정점 인덱스에 따라 Quad 정점 좌표 생성
+const static float2 QuadPos[6] =
+{
+    float2(-1, -1), float2(1, -1), float2(-1, 1), // 첫 번째 삼각형
+    float2(-1, 1), float2(1, -1), float2(1, 1) // 두 번째 삼각형
+};
+
+const static float2 PolygonPos[30] =
+{
+    // 9개의 삼각형을 만드는 버텍스들
+    // 각 삼각형의 3개 정점 정의 (중앙 점 (0, 0) + 원 둘레의 점들)
+
+    // 삼각형 1
+    float2(0.0000, 0.0000), float2(1.0000, 0.0000), float2(0.7660, 0.6428),
+    // 삼각형 2
+    float2(0.0000, 0.0000), float2(0.7660, 0.6428), float2(0.3420, 0.9397),
+    // 삼각형 3
+    float2(0.0000, 0.0000), float2(0.3420, 0.9397), float2(-0.3420, 0.9397),
+    // 삼각형 4
+    float2(0.0000, 0.0000), float2(-0.3420, 0.9397), float2(-0.7660, 0.6428),
+    // 삼각형 5
+    float2(0.0000, 0.0000), float2(-0.7660, 0.6428), float2(-1.0000, 0.0000),
+    // 삼각형 6
+    float2(0.0000, 0.0000), float2(-1.0000, 0.0000), float2(-0.7660, -0.6428),
+    // 삼각형 7
+    float2(0.0000, 0.0000), float2(-0.7660, -0.6428), float2(-0.3420, -0.9397),
+    // 삼각형 8
+    float2(0.0000, 0.0000), float2(-0.3420, -0.9397), float2(0.3420, -0.9397),
+    // 삼각형 9
+    float2(0.0000, 0.0000), float2(0.3420, -0.9397), float2(0.7660, -0.6428),
+    // 삼각형 10
+    float2(0.0000, 0.0000), float2(0.7660, -0.6428), float2(1.0000, 0.0000)
+};
+
 
 PS_INPUT mainVS(uint vertexID : SV_VertexID)
 {
-    float2 QuadPos[6] =
-    {
-        float2(-1, -1), float2(1, -1), float2(-1, 1),
-        float2(-1, 1), float2(1, -1), float2(1, 1)
-    };
+
     
     PS_INPUT output;
 
@@ -53,7 +77,7 @@ PS_INPUT mainVS(uint vertexID : SV_VertexID)
     up = cross(forward, right);
 
     // 정점 변환을 위한 행렬 생성
-    float3 quadVertex = QuadPos[vertexID].x * right + QuadPos[vertexID].y * up;
+    float3 quadVertex = PolygonPos[vertexID].x * right + PolygonPos[vertexID].y * up;
 
     // 정점 변환
     output.position = float4(quadVertex * Scale + Pos, 1.0);
