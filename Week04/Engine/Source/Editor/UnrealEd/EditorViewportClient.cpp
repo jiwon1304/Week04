@@ -11,93 +11,6 @@
 FVector FEditorViewportClient::Pivot = FVector(0.0f, 0.0f, 0.0f);
 float FEditorViewportClient::orthoSize = 10.0f;
 
-void Frustum::CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio)
-{
-    const FVector point   = camera.GetLocation();
-    const FVector forward = camera.GetForwardVector();
-    const FVector up      = camera.GetUpVector();
-    const FVector right   = camera.GetRightVector();
-
-    const float radFov   = fov * PI / 180.0f;
-    const float halfFov  = radFov * 0.5f;
-    const float tanFov   = tanf(halfFov);
-    const float nearHeight = tanFov * nearZ;
-    const float nearWidth  = nearHeight * aspectRatio;
-    const float farHeight  = tanFov * farZ;
-    const float farWidth   = farHeight * aspectRatio;
-
-    const float deltaZ   = farZ - nearZ;
-    const float widthDiff  = farWidth - nearWidth;
-    const float heightDiff = farHeight - nearHeight;
-    const FVector fwdDelta = forward * deltaZ;
-
-    // Left plane
-    const FVector leftDir = fwdDelta - right * widthDiff;
-    planes[0].normal = up.Cross(leftDir).Normalize();
-    planes[0].d = -planes[0].normal.Dot(point);
-
-    // Right plane
-    const FVector rightDir = fwdDelta + right * widthDiff;
-    planes[1].normal = rightDir.Cross(up).Normalize();
-    planes[1].d = -planes[1].normal.Dot(point);
-
-    // Top plane
-    const FVector upDir = fwdDelta + up * heightDiff;
-    planes[2].normal = right.Cross(upDir).Normalize();
-    planes[2].d = -planes[2].normal.Dot(point);
-
-    // Bottom plane
-    const FVector downDir = fwdDelta - up * heightDiff;
-    planes[3].normal = downDir.Cross(right).Normalize();
-    planes[3].d = -planes[3].normal.Dot(point);
-
-    // Near plane
-    const FVector nearPoint = point + forward * nearZ;
-    planes[4].normal = forward;
-    planes[4].d = -forward.Dot(nearPoint);
-
-    // Far plane
-    const FVector farPoint = point + forward * farZ;
-    planes[5].normal = forward * -1.f;
-    planes[5].d = forward.Dot(farPoint);
-}
-
-FVector Frustum::IntersectThreePlanes(const Plane& p1, const Plane& p2, const Plane& p3)
-{
-    const FVector& n1 = p1.normal;
-    const FVector& n2 = p2.normal;
-    const FVector& n3 = p3.normal;
-
-    float det = n1.Dot(n2.Cross(n3));
-    if (abs(det) < KINDA_SMALL_NUMBER)
-    {
-        return FVector::ZeroVector; // 평면들이 평행하거나 일치 → 교점 없음
-    }
-
-    return (n2.Cross(n3) * (-p1.d) + n3.Cross(n1) * (-p2.d) + n1.Cross(n2) * (-p3.d)) * (1.0f / det);
-}
-
-TArray<FVector> Frustum::ExtractFrustumCorners()
-{
-    enum { Left = 0, Right, Bottom, Top, Near, Far };
-
-    TArray<FVector> outCorners;
-
-    // Near plane corners
-    outCorners.Add(IntersectThreePlanes(planes[Left], planes[Bottom], planes[Near])); // Near Bottom Left
-    outCorners.Add(IntersectThreePlanes(planes[Left], planes[Top], planes[Near])); // Near Top Left
-    outCorners.Add(IntersectThreePlanes(planes[Right], planes[Bottom], planes[Near])); // Near Bottom Right
-    outCorners.Add(IntersectThreePlanes(planes[Right], planes[Top], planes[Near])); // Near Top Right
-
-    // Far plane corners
-    outCorners.Add(IntersectThreePlanes(planes[Left], planes[Bottom], planes[Far])); // Far Bottom Left
-    outCorners.Add(IntersectThreePlanes(planes[Left], planes[Top], planes[Far])); // Far Top Left
-    outCorners.Add(IntersectThreePlanes(planes[Right], planes[Bottom], planes[Far])); // Far Bottom Right
-    outCorners.Add(IntersectThreePlanes(planes[Right], planes[Top], planes[Far])); // Far Top Right
-
-    return outCorners;
-}
-
 FEditorViewportClient::FEditorViewportClient()
     : Viewport(nullptr), ViewMode(VMI_Lit), ViewportType(LVT_Perspective), ShowFlag(31)
 {
@@ -582,69 +495,53 @@ FViewportCameraTransform::FViewportCameraTransform()
 
 void Frustum::CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio)
 {
-    FVector normal;
-    float d;
+    const FVector point = camera.GetLocation();
+    const FVector forward = camera.GetForwardVector();
+    const FVector up = camera.GetUpVector();
+    const FVector right = camera.GetRightVector();
 
-    FVector point;
-    FVector cameraPos = camera.GetLocation();
-    FVector forward = camera.GetForwardVector();
-    FVector up = camera.GetUpVector();
-    FVector right = camera.GetRightVector();
+    const float radFov = fov * PI / 180.0f;
+    const float halfFov = radFov * 0.5f;
+    const float tanFov = tanf(halfFov);
+    const float nearHeight = tanFov * nearZ;
+    const float nearWidth = nearHeight * aspectRatio;
+    const float farHeight = tanFov * farZ;
+    const float farWidth = farHeight * aspectRatio;
 
-    fov = fov * PI / 180.0f;
-    float halfFOV = fov / 2.0f;
-    float tanFOV = tanf(halfFOV);
-    float nearHeight = tanFOV * nearZ;
-    float nearWidth = nearHeight * aspectRatio;
-    float farHeight = tanFOV * farZ;
-    float farWidth = farHeight * aspectRatio;
-    FVector nearPoint = cameraPos + forward * nearZ;
-    FVector farPoint = cameraPos + forward * farZ;
+    const float deltaZ = farZ - nearZ;
+    const float widthDiff = farWidth - nearWidth;
+    const float heightDiff = farHeight - nearHeight;
+    const FVector fwdDelta = forward * deltaZ;
 
-    FVector leftNear = (nearPoint - right * nearWidth) - cameraPos;
-    FVector leftFar = (farPoint - right * farWidth) - cameraPos;
-    FVector leftDir = leftFar - leftNear;
-    normal = up.Cross(leftDir).Normalize();
-    point = cameraPos;
-    d = -1.0f * normal.Dot(point);
-    planes[0].normal = normal;
-    planes[0].d = d;
+    // Left plane
+    const FVector leftDir = fwdDelta - right * widthDiff;
+    planes[0].normal = up.Cross(leftDir).Normalize();
+    planes[0].d = -planes[0].normal.Dot(point);
 
-    FVector rightNear = (nearPoint + right * nearWidth) - cameraPos;
-    FVector rightFar = (farPoint + right * farWidth) - cameraPos;
-    FVector rightDir = rightFar - rightNear;
-    normal = rightDir.Cross(up).Normalize();
-    d = -1.0f * normal.Dot(point);
-    planes[1].normal = normal;
-    planes[1].d = d;
+    // Right plane
+    const FVector rightDir = fwdDelta + right * widthDiff;
+    planes[1].normal = rightDir.Cross(up).Normalize();
+    planes[1].d = -planes[1].normal.Dot(point);
 
-    FVector upNear = (nearPoint + up * nearHeight) - cameraPos;
-    FVector upFar = (farPoint + up * farHeight) - cameraPos;
-    FVector upDir = upFar - upNear;
-    normal = right.Cross(upDir).Normalize();
-    d = -1.0f * normal.Dot(point);
-    planes[2].normal = normal;
-    planes[2].d = d;
+    // Top plane
+    const FVector upDir = fwdDelta + up * heightDiff;
+    planes[2].normal = right.Cross(upDir).Normalize();
+    planes[2].d = -planes[2].normal.Dot(point);
 
-    FVector downNear = (nearPoint - up * nearHeight) - cameraPos;
-    FVector downFar = (farPoint - up * farHeight) - cameraPos;
-    FVector downDir = downFar - downNear;
-    normal = downDir.Cross(right).Normalize();
-    d = -1.0f * normal.Dot(point);
-    planes[3].normal = normal;
-    planes[3].d = d;
+    // Bottom plane
+    const FVector downDir = fwdDelta - up * heightDiff;
+    planes[3].normal = downDir.Cross(right).Normalize();
+    planes[3].d = -planes[3].normal.Dot(point);
 
-    normal = forward;
-    point = nearPoint;
-    d = -1.0f * normal.Dot(point);
-    planes[4].normal = normal;
-    planes[4].d = d;
+    // Near plane
+    const FVector nearPoint = point + forward * nearZ;
+    planes[4].normal = forward;
+    planes[4].d = -forward.Dot(nearPoint);
 
-    normal = forward * -1.0f;
-    point = farPoint;
-    d = -1.0f * normal.Dot(point);
-    planes[5].normal = normal;
-    planes[5].d = d;
+    // Far plane
+    const FVector farPoint = point + forward * farZ;
+    planes[5].normal = forward * -1.f;
+    planes[5].d = forward.Dot(farPoint);
 }
 
 void Frustum::CreatePlaneWithMatrix(FMatrix viewProjec)
