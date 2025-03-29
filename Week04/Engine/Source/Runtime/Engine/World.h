@@ -24,7 +24,7 @@ struct FOctreeNode {
     std::unique_ptr<FOctreeNode> children[8]; //자식 옥트리
     bool bIsLeaf;
 
-    FOctreeNode(FVector min, FVector max) : bound(min, max) {}
+    FOctreeNode(FVector min, FVector max) : bound(min, max), bIsLeaf(true) {}
 
     void SubDivide() {
         FVector center = bound.GetCenter();

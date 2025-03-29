@@ -32,8 +32,12 @@ void UWorld::Initialize(HWND hWnd)
     if (RootOctree == nullptr) {
         RootOctree = std::make_unique<FOctreeNode>(FVector(-100, -100, -100), FVector(100, 100, 100));
     }
-    for (const auto& iter : TObjectRange<UPrimitiveComponent>()) {
-        RootOctree->Insert(iter);
+    if (RootOctree) {
+        for (const auto& iter : TObjectRange<UPrimitiveComponent>()) {
+            if (iter) {
+                RootOctree->Insert(iter);
+            }
+        }
     }
 }
 
