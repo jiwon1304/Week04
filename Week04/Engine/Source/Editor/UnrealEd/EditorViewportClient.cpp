@@ -304,7 +304,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
 
 void FEditorViewportClient::UpdateFrustum()
 {
-    CameraFrustum.CreatePlane(ViewTransformPerspective, FOVAngle, nearPlane, farPlane, AspectRatio);
+    CameraFrustum.CreatePlane(ViewTransformPerspective, ViewFOV, nearPlane, farPlane, AspectRatio);
 }
 
 bool FEditorViewportClient::IsOrtho() const

@@ -1001,45 +1001,29 @@ void FRenderer::PrepareRender()
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
-            bool bIsInsideFrustum = true;
-            Frustum frustum = ActiveViewport->GetFrustum();
-            FVector pos = pStaticMeshComp->GetWorldLocation();
-            FBoundingBox aabb = pStaticMeshComp->AABB;
-            aabb.min = aabb.min + pos;
-            aabb.max = aabb.max + pos;
-            /*TArray<FVector> vertices = aabb.GetVertices();
-            for (const FVector& vertex : vertices) {
-                for (int i = 0; i < 6; i++) {
-                    Plane& plane = frustum.planes[i];
-                    float dist = vertex.Dot(plane.normal) + plane.d;
-                    if (dist < 0) {
-                        bIsInsideFrustum = false;
-                        break;
-                    }
-                }
-                if (!bIsInsideFrustum)
-                    break;
-            }*/
-            for (int i = 0; i < 6; i++) {
-                Plane& plane = frustum.planes[i];
-                FVector p = aabb.GetPositiveVertex(plane.normal);
-                float dist = p.Dot(plane.normal) + plane.d;
-                if (dist < 0) {
-                    bIsInsideFrustum = false;
-                    break;
-                }
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
             }
-            int SubMeshIdx = 0;
-            if (bIsInsideFrustum) {
+            
+            if (IsInsideFrustum(pStaticMeshComp))
+            {
                 FMeshData Data;
-                Data.StaticMeshComp = pStaticMeshComp;
+                int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
+                Data.WorldMatrix = JungleMath::CreateModelMatrix(
+                    pStaticMeshComp->GetWorldLocation(),
+                    pStaticMeshComp->GetWorldRotation(),
+                    pStaticMeshComp->GetWorldScale()
+                );
+                Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
                 for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
                 {
                     UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
                     Data.IndexStart = subMesh.IndexStart;
                     Data.IndexCount = subMesh.IndexCount;
-                    MaterialMeshMap[Material].Add(Data);
+                    MaterialMeshMap[Material][StaticMesh].push_back(Data);
                     SubMeshIdx++;
                 }
             }
@@ -1057,20 +1041,51 @@ void FRenderer::PrepareRender()
         */
     }
     //std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
-    for (auto& [Material, MeshArray] : MaterialMeshMap)
+}
+
+bool FRenderer::IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const
+{
+    Frustum Frustum = ActiveViewport->GetFrustum();
+    FVector Location = StaticMeshComp->GetWorldLocation();
+    FBoundingBox AABB = StaticMeshComp->AABB;
+    AABB.min = AABB.min + Location;
+    AABB.max = AABB.max + Location;
+    /*TArray<FVector> vertices = aabb.GetVertices();
+    for (const FVector& vertex : vertices) {
+        for (int i = 0; i < 6; i++) {
+            Plane& plane = frustum.planes[i];
+            float dist = vertex.Dot(plane.normal) + plane.d;
+            if (dist < 0) {
+                bIsInsideFrustum = false;
+                break;
+            }
+        }
+        if (!bIsInsideFrustum)
+            break;
+    }*/
+    for (int i = 0; i < 6; ++i)
     {
-        // Material별로 나뉘어졌으므로, 배열의 길이가 짧아졌고, 정렬할 때 조금 더 빠를 듯함
-        std::sort(MeshArray.begin(), MeshArray.end(), FRenderer::SubmeshCmp);
+        const Plane& Plane = Frustum.planes[i];
+        FVector PositiveVector = AABB.GetPositiveVertex(Plane.normal);
+        float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
+        if (Dist < 0)
+        {
+            return false;
+        }
     }
+    return true;
 }
 
 void FRenderer::ClearRenderArr()
 {
     // SortedStaticMeshObjs.clear();
-    for (auto& [Material, DataArray] : MaterialMeshMap)
+    for (auto& [Material, DataMap] : MaterialMeshMap)
     {
-        // W04 - 이번 게임잼 특성상 사용되는 Material이 고정되어있으므로, 맵에서 Key를 삭제하지는 않음.
-        DataArray.Empty();
+        for (auto& [StaticMesh, DataArray] : DataMap)
+        {
+            // W04 - 이번 게임잼 특성상 사용되는 Material과 스태틱메시가 고정되어있으므로, 맵에서 Key를 삭제하지는 않음.
+            DataArray.clear();
+        }
     }
     GizmoObjs.Empty();
     //BillboardObjs.Empty();
@@ -1148,40 +1163,29 @@ void FRenderer::RenderStaticMeshes()
     }
     */
     
-    for (auto& [Material, DataArray] : MaterialMeshMap)
+    for (auto& [Material, DataMap] : MaterialMeshMap)
     {
         // 이번에 사용하는 머티리얼을 GPU로 전달
         UpdateMaterial(Material->GetMaterialInfo());
-        void* PrevVertexBuffer = nullptr; // 이번에 버텍스 버퍼와 인덱스 버퍼를 바꿔야 하는지를 판단하기 위한 용도
-        for (const auto& Data : DataArray)
+        for (const auto& [StaticMesh, DataArray] : DataMap)
         {
-            UStaticMeshComponent* StaticMeshComp = Data.StaticMeshComp;
-            uint32 Idx = Data.SubMeshIndex;
-            OBJ::FStaticMeshRenderData* RenderData = StaticMeshComp->GetStaticMesh()->GetRenderData();
-            if (PrevVertexBuffer != RenderData->VertexBuffer)
+            // 버텍스 버퍼 업데이트
+            OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+            UINT offset = 0;
+            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+            if (RenderData->IndexBuffer)
             {
-                // 같은 머티리얼을 사용하지만, 다른 스태틱 메시이므로, 버텍스 버퍼와 인덱스 버퍼 변경
-                PrevVertexBuffer = RenderData->VertexBuffer;
-                UINT offset = 0;
-                Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
-                if (RenderData->IndexBuffer)
-                {
-                    Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                }
+                Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
             }
+            for (const FMeshData& Data : DataArray)
+            {
+                FMatrix MVP = Data.WorldMatrix * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+                FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
+                UpdateConstant(MVP, UUIDColor, Data.bIsSelected);
 
-            // 매트릭스 업데이트
-            FMatrix Model = JungleMath::CreateModelMatrix(
-                StaticMeshComp->GetWorldLocation(),
-                StaticMeshComp->GetWorldRotation(),
-                StaticMeshComp->GetWorldScale()
-            );
-            FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
-            FVector4 UUIDColor = StaticMeshComp->EncodeUUID() / 255.0f;
-            UpdateConstant(MVP, UUIDColor, World->GetSelectedActor() == StaticMeshComp->GetOwner());
-
-            // Draw
-            Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+                // Draw
+                Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+            }
         }
     }
 }
@@ -1305,10 +1309,4 @@ bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair
         
     // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
     return a.mesh < b.mesh;
-}
-
-bool FRenderer::SubmeshCmp(const FMeshData& a, const FMeshData& b)
-{
-    // 스태틱메시를 기준으로 정렬하여 버텍스 버퍼와 인덱스 버퍼를 바꾸는 횟수를 최소화하기 위함
-    return a.StaticMeshComp < b.StaticMeshComp;
 }
