@@ -20,7 +20,7 @@ public:
 
 private:
     FString m_Type;
-    bool bIsInitialized;
+    bool bIsBoundingBoxInitialized;
 
 public:
     FString GetType() { return m_Type; }

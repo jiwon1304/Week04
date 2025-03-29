@@ -81,19 +81,21 @@ public:
     float OrthoZoom;
 };
 
-struct Plane {
+struct Plane
+{
     FVector normal;
     float d;
 };
 
-struct Frustum {
+struct Frustum
+{
     Plane planes[6]; //좌우 상하 near far
 
-    void CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio);
+    void CreatePlane(FViewportCameraTransform& camera, float fov, float nearZ, float farZ, float aspectRatio);
 
-    void CreatePlaneWithMatrix(FMatrix viewProj);
+    void CreatePlaneWithMatrix(const FMatrix& ViewProjection);
 
-    bool Intersects(FBoundingBox box);
+    bool Intersects(const FBoundingBox& box);
 };
 
 class FEditorViewportClient : public FViewportClient

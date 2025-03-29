@@ -491,7 +491,7 @@ FViewportCameraTransform::FViewportCameraTransform()
 {
 }
 
-void Frustum::CreatePlane(FViewportCameraTransform camera, float fov, float nearZ, float farZ, float aspectRatio)
+void Frustum::CreatePlane(FViewportCameraTransform& camera, float fov, float nearZ, float farZ, float aspectRatio)
 {
     const FVector point = camera.GetLocation();
     const FVector forward = camera.GetForwardVector();
@@ -542,74 +542,38 @@ void Frustum::CreatePlane(FViewportCameraTransform camera, float fov, float near
     planes[5].d = forward.Dot(farPoint);
 }
 
-void Frustum::CreatePlaneWithMatrix(FMatrix viewProjec)
+void Frustum::CreatePlaneWithMatrix(const FMatrix& ViewProjection)
 {
-    float a, b, c, d;
-    FVector normal;
-    float length;
+    XMMATRIX ViewProj = ViewProjection.ToXMMATRIX();
+    
+    // 행렬의 각 행을 SIMD 벡터로 로드합니다.
+    XMVECTOR r0 = ViewProj.r[0];
+    XMVECTOR r1 = ViewProj.r[1];
+    XMVECTOR r2 = ViewProj.r[2];
+    XMVECTOR r3 = ViewProj.r[3];
 
-    a = viewProjec.M[3][0] + viewProjec.M[0][0];
-    b = viewProjec.M[3][1] + viewProjec.M[0][1];
-    c = viewProjec.M[3][2] + viewProjec.M[0][2];
-    d = viewProjec.M[3][3] + viewProjec.M[0][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[0].normal = normal;
-    planes[0].d = d;
+    // SIMD 연산을 사용하여 평면을 계산 및 정규화합니다.
+    XMVECTOR simdPlanes[6];
+    simdPlanes[0] = XMPlaneNormalize(XMVectorAdd(r3, r0));   // Left plane: row3 + row0
+    simdPlanes[1] = XMPlaneNormalize(XMVectorSubtract(r3, r0)); // Right plane: row3 - row0
+    simdPlanes[2] = XMPlaneNormalize(XMVectorAdd(r3, r1));   // Top plane: row3 + row1
+    simdPlanes[3] = XMPlaneNormalize(XMVectorSubtract(r3, r1)); // Bottom plane: row3 - row1
+    simdPlanes[4] = XMPlaneNormalize(XMVectorAdd(r3, r2));   // Near plane: row3 + row2
+    simdPlanes[5] = XMPlaneNormalize(XMVectorSubtract(r3, r2)); // Far plane: row3 - row2
 
-    a = viewProjec.M[3][0] - viewProjec.M[0][0];
-    b = viewProjec.M[3][1] - viewProjec.M[0][1];
-    c = viewProjec.M[3][2] - viewProjec.M[0][2];
-    d = viewProjec.M[3][3] - viewProjec.M[0][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[1].normal = normal;
-    planes[1].d = d;
-
-    a = viewProjec.M[3][0] + viewProjec.M[1][0];
-    b = viewProjec.M[3][1] + viewProjec.M[1][1];
-    c = viewProjec.M[3][2] + viewProjec.M[1][2];
-    d = viewProjec.M[3][3] + viewProjec.M[1][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[2].normal = normal;
-    planes[2].d = d;
-
-    a = viewProjec.M[3][0] - viewProjec.M[1][0];
-    b = viewProjec.M[3][1] - viewProjec.M[1][1];
-    c = viewProjec.M[3][2] - viewProjec.M[1][2];
-    d = viewProjec.M[3][3] - viewProjec.M[1][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[3].normal = normal;
-    planes[3].d = d;
-
-    a = viewProjec.M[3][0] + viewProjec.M[2][0];
-    b = viewProjec.M[3][1] + viewProjec.M[2][1];
-    c = viewProjec.M[3][2] + viewProjec.M[2][2];
-    d = viewProjec.M[3][3] + viewProjec.M[2][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[4].normal = normal;
-    planes[4].d = d;
-
-    a = viewProjec.M[3][0] - viewProjec.M[2][0];
-    b = viewProjec.M[3][1] - viewProjec.M[2][1];
-    c = viewProjec.M[3][2] - viewProjec.M[2][2];
-    d = viewProjec.M[3][3] - viewProjec.M[2][3];
-    length = sqrtf(a * a + b * b + c * c);
-    normal = FVector{ a,b,c } *(1.0f / length);
-    d /= length;
-    planes[5].normal = normal;
-    planes[5].d = d;
+    // SIMD 결과를 Plane 배열에 저장합니다.
+    for (int i = 0; i < 6; ++i)
+    {
+        XMFLOAT4 planeF4;
+        XMStoreFloat4(&planeF4, simdPlanes[i]);
+        planes[i].normal.x = planeF4.x;
+        planes[i].normal.y = planeF4.y;
+        planes[i].normal.z = planeF4.z;
+        planes[i].d = planeF4.w;
+    }
 }
 
-bool Frustum::Intersects(FBoundingBox box)
+bool Frustum::Intersects(const FBoundingBox& box)
 {
     for (int i = 0; i < 6; ++i)
     {
