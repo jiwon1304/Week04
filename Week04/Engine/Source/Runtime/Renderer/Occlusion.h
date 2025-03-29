@@ -12,8 +12,8 @@
 
 constexpr float OCCLUSION_DISTANCE_DIV = 1.1f;  // 적절한 초기값으로 초기화
 constexpr int OCCLUSION_DISTANCE_BIN_NUM = 49 + 1;  // log(1.2f)^100
-constexpr int OcclusionBufferSizeWidth = 256;
-constexpr int OcclusionBufferSizeHeight = 256;
+constexpr int OcclusionBufferSizeWidth = 1024;
+constexpr int OcclusionBufferSizeHeight = 1024;
 extern UINT32 NumDisOccluded;
 
 class UPrimitiveComponent;

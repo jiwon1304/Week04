@@ -21,8 +21,8 @@ void Occlusion::Init(FGraphicsDevice* graphics)
     Graphics = graphics;
 
     D3D11_TEXTURE2D_DESC DepthStencilBufferDesc = {};
-    DepthStencilBufferDesc.Width = 1024;
-    DepthStencilBufferDesc.Height = 1024;
+    DepthStencilBufferDesc.Width = OcclusionBufferSizeWidth;
+    DepthStencilBufferDesc.Height = OcclusionBufferSizeHeight;
     DepthStencilBufferDesc.MipLevels = 1;
     DepthStencilBufferDesc.ArraySize = 1;
     DepthStencilBufferDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
@@ -134,8 +134,8 @@ void Occlusion::Prepare()
     D3D11_VIEWPORT Viewport = {};
     Viewport.TopLeftX = 0;
     Viewport.TopLeftY = 0;
-    Viewport.Width = 1024;
-    Viewport.Height = 1024;
+    Viewport.Width = OcclusionBufferSizeWidth;
+    Viewport.Height = OcclusionBufferSizeHeight;
     Viewport.MinDepth = 0.0f;
     Viewport.MaxDepth = 1.0f;
     Graphics->DeviceContext->RSSetViewports(1, &Viewport);
@@ -235,7 +235,6 @@ TArray<UStaticMeshComponent*> Occlusion::Query(TArray<UPrimitiveComponent*> InCo
 
 void Occlusion::SortMeshRoughly(TArray<UPrimitiveComponent*> InComponents)
 {
-    //std::array<UStaticMeshComponent*, DISTANCE_BIN_NUM> bins;
     for (auto& bin : MeshesSortedByDistance)
     {
         bin.Empty();
@@ -308,8 +307,8 @@ void Occlusion::PrepareOcclusion()
     D3D11_VIEWPORT Viewport = {};
     Viewport.TopLeftX = 0;
     Viewport.TopLeftY = 0;
-    Viewport.Width = 1024;
-    Viewport.Height = 1024;
+    Viewport.Width = OcclusionBufferSizeWidth;
+    Viewport.Height = OcclusionBufferSizeHeight;
     Viewport.MinDepth = 0.0f;
     Viewport.MaxDepth = 1.0f;
     Graphics->DeviceContext->RSSetViewports(1, &Viewport);
