@@ -31,8 +31,21 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
 
-    // W04 - Setup
-    PrepareShader(); // W04 - 쉐이더 설정은 한번만
+    BindBuffers();
+}
+
+void FRenderer::BindBuffers()
+{
+    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+    Graphics->DeviceContext->VSSetConstantBuffers(5, 1, &ConstantBufferView);
+    Graphics->DeviceContext->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
+    Graphics->DeviceContext->VSSetConstantBuffers(7, 1, &GridConstantBuffer);
+    Graphics->DeviceContext->VSSetConstantBuffers(13, 1, &LinePrimitiveBuffer);
+        
+    Graphics->DeviceContext->PSSetConstantBuffers(0, 1, &ConstantBuffer);
+    Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
+    Graphics->DeviceContext->PSSetConstantBuffers(3, 1, &FlagBuffer);
+    Graphics->DeviceContext->PSSetConstantBuffers(7, 1, &GridConstantBuffer);
 }
 
 void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport)
@@ -59,10 +72,10 @@ void FRenderer::CreateShader()
     ID3DBlob* VertexShaderCSO;
     ID3DBlob* PixelShaderCSO;
 
-    D3DCompileFromFile(L"Shaders/StaticMeshVertexShader.hlsl", nullptr, nullptr, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
+    D3DCompileFromFile(L"Shaders/StaticMeshVertexShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
     Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &VertexShader);
 
-    D3DCompileFromFile(L"Shaders/StaticMeshPixelShader.hlsl", nullptr, nullptr, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
+    D3DCompileFromFile(L"Shaders/StaticMeshPixelShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
     Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &PixelShader);
 
     D3D11_INPUT_ELEMENT_DESC layout[] = {
@@ -107,20 +120,6 @@ void FRenderer::PrepareShader() const
     Graphics->DeviceContext->VSSetShader(VertexShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(PixelShader, nullptr, 0);
     Graphics->DeviceContext->IASetInputLayout(InputLayout);
-
-    if (ConstantBuffer)
-    {
-        Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
-        Graphics->DeviceContext->VSSetConstantBuffers(5, 1, &ConstantBufferView);
-        Graphics->DeviceContext->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
-        
-        Graphics->DeviceContext->PSSetConstantBuffers(0, 1, &ConstantBuffer);
-        Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
-        // Graphics->DeviceContext->PSSetConstantBuffers(2, 1, &LightingBuffer);
-        Graphics->DeviceContext->PSSetConstantBuffers(3, 1, &FlagBuffer);
-        // Graphics->DeviceContext->PSSetConstantBuffers(4, 1, &SubMeshConstantBuffer);
-        // Graphics->DeviceContext->PSSetConstantBuffers(5, 1, &TextureConstantBuffer);
-    }
 }
 
 void FRenderer::ResetVertexShader() const
@@ -146,7 +145,7 @@ void FRenderer::SetVertexShader(const FWString& filename, const FString& funcnam
         InputLayout->Release();
     ID3DBlob* vertexshaderCSO;
 
-    D3DCompileFromFile(filename.c_str(), nullptr, nullptr, *funcname, *version, 0, 0, &vertexshaderCSO, nullptr);
+    D3DCompileFromFile(filename.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, *funcname, *version, 0, 0, &vertexshaderCSO, nullptr);
     Graphics->Device->CreateVertexShader(vertexshaderCSO->GetBufferPointer(), vertexshaderCSO->GetBufferSize(), nullptr, &VertexShader);
     vertexshaderCSO->Release();
 }
@@ -159,7 +158,7 @@ void FRenderer::SetPixelShader(const FWString& filename, const FString& funcname
     if (VertexShader != nullptr)
         ResetVertexShader();
     ID3DBlob* pixelshaderCSO;
-    D3DCompileFromFile(filename.c_str(), nullptr, nullptr, *funcname, *version, 0, 0, &pixelshaderCSO, nullptr);
+    D3DCompileFromFile(filename.c_str(), nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, *funcname, *version, 0, 0, &pixelshaderCSO, nullptr);
     Graphics->Device->CreatePixelShader(pixelshaderCSO->GetBufferPointer(), pixelshaderCSO->GetBufferSize(), nullptr, &PixelShader);
 
     pixelshaderCSO->Release();
@@ -604,7 +603,7 @@ void FRenderer::CreateTextureShader()
     ID3DBlob* pixeltextureshaderCSO;
 
     HRESULT hr;
-    hr = D3DCompileFromFile(L"Shaders/VertexTextureShader.hlsl", nullptr, nullptr, "main", "vs_5_0", 0, 0, &vertextextureshaderCSO, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/VertexTextureShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "vs_5_0", 0, 0, &vertextextureshaderCSO, nullptr);
     if (FAILED(hr))
     {
         Console::GetInstance().AddLog(LogLevel::Warning, "VertexShader Error");
@@ -613,7 +612,7 @@ void FRenderer::CreateTextureShader()
         vertextextureshaderCSO->GetBufferPointer(), vertextextureshaderCSO->GetBufferSize(), nullptr, &VertexTextureShader
     );
 
-    hr = D3DCompileFromFile(L"Shaders/PixelTextureShader.hlsl", nullptr, nullptr, "main", "ps_5_0", 0, 0, &pixeltextureshaderCSO, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/PixelTextureShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "main", "ps_5_0", 0, 0, &pixeltextureshaderCSO, nullptr);
     if (FAILED(hr))
     {
         Console::GetInstance().AddLog(LogLevel::Warning, "PixelShader Error");
@@ -815,20 +814,6 @@ void FRenderer::PrepareLineShader() const
     // ���̴��� �Է� ���̾ƿ� ����
     Graphics->DeviceContext->VSSetShader(VertexLineShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(PixelLineShader, nullptr, 0);
-
-    // ��� ���� ���ε�: 
-    // - MatrixBuffer�� register(b0)��, Vertex Shader�� ���ε�
-    // - GridConstantBuffer�� register(b1)��, Vertex�� Pixel Shader�� ���ε� (�ȼ� ���̴��� �ʿ信 ����)
-    if (ConstantBuffer && GridConstantBuffer)
-    {
-        Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);     // MatrixBuffer (b0)
-        Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &GridConstantBuffer); // GridParameters (b1)
-        Graphics->DeviceContext->PSSetConstantBuffers(1, 1, &GridConstantBuffer);
-        Graphics->DeviceContext->VSSetConstantBuffers(3, 1, &LinePrimitiveBuffer);
-        Graphics->DeviceContext->VSSetShaderResources(2, 1, &pBBSRV);
-        Graphics->DeviceContext->VSSetShaderResources(3, 1, &pConeSRV);
-        Graphics->DeviceContext->VSSetShaderResources(4, 1, &pOBBSRV);
-    }
 }
 
 void FRenderer::CreateLineShader()
@@ -837,20 +822,19 @@ void FRenderer::CreateLineShader()
     ID3DBlob* PixelShaderLine;
 
     HRESULT hr;
-    hr = D3DCompileFromFile(L"Shaders/ShaderLine.hlsl", nullptr, nullptr, "mainVS", "vs_5_0", 0, 0, &VertexShaderLine, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/ShaderLine.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderLine, nullptr);
     if (FAILED(hr))
     {
         Console::GetInstance().AddLog(LogLevel::Warning, "VertexShader Error");
     }
     Graphics->Device->CreateVertexShader(VertexShaderLine->GetBufferPointer(), VertexShaderLine->GetBufferSize(), nullptr, &VertexLineShader);
 
-    hr = D3DCompileFromFile(L"Shaders/ShaderLine.hlsl", nullptr, nullptr, "mainPS", "ps_5_0", 0, 0, &PixelShaderLine, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/ShaderLine.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderLine, nullptr);
     if (FAILED(hr))
     {
         Console::GetInstance().AddLog(LogLevel::Warning, "PixelShader Error");
     }
     Graphics->Device->CreatePixelShader(PixelShaderLine->GetBufferPointer(), PixelShaderLine->GetBufferSize(), nullptr, &PixelLineShader);
-
 
     VertexShaderLine->Release();
     PixelShaderLine->Release();
@@ -1155,7 +1139,7 @@ void FRenderer::Render()
     // UpdateLightBuffer(); // W04
 
     // TODO: W04 - 아래 함수는 월드 그리드와 바운딩 박스를 렌더함. 그리드와 바운딩 박스 렌더 분리해야함.
-    UPrimitiveBatch::GetInstance().RenderBatch(ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix());
+    UPrimitiveBatch::GetInstance().RenderBatch();
 
     UpdateIsGizmoConstant(0);
     RenderStaticMeshes();
@@ -1240,18 +1224,15 @@ void FRenderer::RenderGizmos()
             GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleZ)
             && World->GetEditorPlayer()->GetControlMode() != CM_ROTATION)
             continue;
+        
         FMatrix Model = JungleMath::CreateModelMatrix(GizmoComp->GetWorldLocation(),
             GizmoComp->GetWorldRotation(),
             GizmoComp->GetWorldScale()
         );
+        
         FVector4 UUIDColor = GizmoComp->EncodeUUID() / 255.0f;
-
-        FMatrix MVP = Model * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
-
-        if (GizmoComp == World->GetPickingGizmo())
-            UpdateConstant(MVP, UUIDColor, true);
-        else
-            UpdateConstant(MVP, UUIDColor, false);
+        FMatrix WorldMatrix = Model;
+        UpdateConstant(WorldMatrix, UUIDColor, GizmoComp == World->GetPickingGizmo());
 
         RenderPrimitive(renderData, GizmoComp->GetStaticMesh()->GetMaterials(), GizmoComp->GetOverrideMaterials());
     }

@@ -1,21 +1,4 @@
-// MatrixBuffer: 변환 행렬 관리
-cbuffer MatrixConstants : register(b0)
-{
-    row_major matrix WorldMatrix;
-    float4 UUID;
-    bool isSelected;
-    float3 MatrixPad0;
-};
-
-cbuffer ViewMatrix : register(b5)
-{
-    row_major matrix ViewMatrix;
-}
-
-cbuffer ViewMatrix : register(b6)
-{
-    row_major matrix ProjectionMatrix;
-}
+#include "ShaderBuffers.hlsl"
 
 struct VS_INPUT
 {

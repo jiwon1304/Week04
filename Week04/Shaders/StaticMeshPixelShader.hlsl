@@ -1,29 +1,9 @@
-Texture2D Textures : register(t0);
-SamplerState Sampler : register(s0);
-
-cbuffer MatrixConstants : register(b0)
-{
-    row_major matrix WorldMatrix;
-    float4 UUID;
-    bool isSelected;
-    float3 Pad0;
-};
+#include "ShaderBuffers.hlsl"
 
 struct FMaterial
 {
     float3 DiffuseColor;
 };
-
-cbuffer MaterialConstants : register(b1)
-{
-    float3 DiffuseColor;
-}
-
-cbuffer FlagConstants : register(b3)
-{
-    bool IsGizmo;
-    float3 flagPad0;
-}
 
 struct PS_INPUT
 {

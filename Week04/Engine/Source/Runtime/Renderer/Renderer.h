@@ -82,6 +82,9 @@ public:
     ID3D11Buffer* CreateIndexBuffer(uint32* indices, UINT byteWidth) const;
     ID3D11Buffer* CreateIndexBuffer(const TArray<uint32>& indices, UINT byteWidth) const;
 
+    // Setup
+    void BindBuffers();
+    
     // update
     void UpdateLightBuffer() const;
     void UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const;
