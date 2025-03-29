@@ -151,6 +151,9 @@ void UWorld::LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClien
     ViewportClient->ViewFOV = CameraComp->GetFOV();
     ViewportClient->nearPlane = CameraComp->GetNearClip();
     ViewportClient->farPlane = CameraComp->GetFarClip();
+    ViewportClient->UpdateProjectionMatrix();
+    ViewportClient->UpdateViewMatrix();
+    ViewportClient->UpdateFrustum();
    
     // primitives  
     for (auto iter = Scene.Primitives.begin(); iter != Scene.Primitives.end(); ++iter)  
