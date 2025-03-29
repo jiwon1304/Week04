@@ -30,6 +30,7 @@ class UObject;
 class FEditorViewportClient;
 class UBillboardComponent;
 class UStaticMeshComponent;
+class UPrimitiveComponent;
 class UGizmoBaseComponent;
 class FRenderer 
 {
@@ -213,7 +214,7 @@ private:
 private:
     TArray<UStaticMeshComponent*> FrustumMeshes;
     std::array<TArray<UStaticMeshComponent*>, OCCLUSION_DISTANCE_BIN_NUM> MeshesSortedByDistance;
-    void SortMeshRoughly();
+    void SortMeshRoughly(TArray<UPrimitiveComponent*> InComponents);
     //std::array<TArray<UStaticMeshComponent*>, DISTANCE_BIN_NUM> ProcessChunk(TObjectIterator<UStaticMeshComponent> startIter, size_t endIdx);
     //void ProcessMeshesInParallel();
 

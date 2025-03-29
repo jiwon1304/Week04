@@ -127,6 +127,13 @@ void FRenderer::PrepareShader() const
     Graphics->DeviceContext->VSSetShader(VertexShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(PixelShader, nullptr, 0);
     Graphics->DeviceContext->IASetInputLayout(InputLayout);
+
+    //Graphics->DeviceContext->ClearDepthStencilView(OcclusionDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+    //Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
+    //Graphics->DeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
+
+
+
 }
 
 void FRenderer::ResetVertexShader() const
@@ -1040,9 +1047,13 @@ void FRenderer::PrepareRender()
     TArray<UPrimitiveComponent*> Components;
     Octree->FrustumCull(Frustum, Components);
 
+    SortMeshRoughly(Components);
+    QueryOcclusion();
+
     AActor* SelectedActor = World->GetSelectedActor();
     
-    for (const auto& Comp : Components)
+    // sortmeshrougly -> queryocclusion -> disoccludedmeshes
+    for (const auto& Comp : DisOccludedMeshes)
     {
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(Comp))
         {
@@ -1135,6 +1146,7 @@ void FRenderer::ClearRenderArr()
 
 void FRenderer::Render()
 {
+    
      Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행 -> depthbuffer추가로 필요
     
     // Graphics->ChangeRasterizer(VMI_Lit);
@@ -1142,7 +1154,9 @@ void FRenderer::Render()
     // ChangeViewMode(ActiveViewport->GetViewMode()); // W04
     
     // UpdateLightBuffer(); // W04
-
+    
+     Graphics->Prepare();
+     BindBuffers();
     // TODO: W04 - 아래 함수는 월드 그리드와 바운딩 박스를 렌더함. 그리드와 바운딩 박스 렌더 분리해야함.
     UPrimitiveBatch::GetInstance().RenderBatch();
 
@@ -1301,20 +1315,20 @@ void FRenderer::RenderLight()
     }
 }
 
-bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b)
-{
-    // 1차: 텍스처 세트 ID
-    if (a.material->GetFName().GetDisplayIndex() != b.material->GetFName().GetDisplayIndex())
-        return a.material->GetFName().GetDisplayIndex() < b.material->GetFName().GetDisplayIndex();
-        
-    // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
-    return a.mesh < b.mesh;
-}
+//bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair& b)
+//{
+//    // 1차: 텍스처 세트 ID
+//    if (a.material->GetFName().GetDisplayIndex() != b.material->GetFName().GetDisplayIndex())
+//        return a.material->GetFName().GetDisplayIndex() < b.material->GetFName().GetDisplayIndex();
+//        
+//    // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
+//    return a.mesh < b.mesh;
+//}
 
 
 // 수정필요 : 받아오는 array / map이 없음.
 
-void FRenderer::SortMeshRoughly()
+void FRenderer::SortMeshRoughly(TArray<UPrimitiveComponent*> InComponents)
 {
     //std::array<UStaticMeshComponent*, DISTANCE_BIN_NUM> bins;
     for (auto& bin : MeshesSortedByDistance)
@@ -1322,13 +1336,16 @@ void FRenderer::SortMeshRoughly()
         bin.Empty();
     }
     MeshesSortedByDistance.empty();
-    for (UStaticMeshComponent* MeshComp : FrustumMeshes) {
-        FVector Disp = MeshComp->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
-        float dist = Disp.Magnitude();
-        dist = log(dist) / log(OCCLUSION_DISTANCE_DIV);
-        dist = dist < 0 ? 0 : dist;
-        int binIndex = std::min(int(dist), OCCLUSION_DISTANCE_BIN_NUM - 1);
-        MeshesSortedByDistance[binIndex].Add(MeshComp);
+    for (UPrimitiveComponent* PrimComp : InComponents) {
+        if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(PrimComp))
+        {
+            FVector Disp = MeshComp->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
+            float dist = Disp.Magnitude();
+            dist = log(dist) / log(OCCLUSION_DISTANCE_DIV);
+            dist = dist < 0 ? 0 : dist;
+            int binIndex = std::min(int(dist), OCCLUSION_DISTANCE_BIN_NUM - 1);
+            MeshesSortedByDistance[binIndex].Add(MeshComp);
+        }
     }
 }
 
