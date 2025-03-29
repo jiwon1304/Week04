@@ -142,6 +142,7 @@ public: // line shader
     void SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport);
     void SetWorld(UWorld* InWorld);
     void PrepareRender();
+    bool IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const;
     void ClearRenderArr();
     void Render();
     void RenderStaticMeshes();

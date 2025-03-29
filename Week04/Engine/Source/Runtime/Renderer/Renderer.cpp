@@ -1007,37 +1007,10 @@ void FRenderer::PrepareRender()
                 continue;
             }
             
-            bool bIsInsideFrustum = true;
-            Frustum frustum = ActiveViewport->GetFrustum();
-            FVector pos = pStaticMeshComp->GetWorldLocation();
-            FBoundingBox aabb = pStaticMeshComp->AABB;
-            aabb.min = aabb.min + pos;
-            aabb.max = aabb.max + pos;
-            /*TArray<FVector> vertices = aabb.GetVertices();
-            for (const FVector& vertex : vertices) {
-                for (int i = 0; i < 6; i++) {
-                    Plane& plane = frustum.planes[i];
-                    float dist = vertex.Dot(plane.normal) + plane.d;
-                    if (dist < 0) {
-                        bIsInsideFrustum = false;
-                        break;
-                    }
-                }
-                if (!bIsInsideFrustum)
-                    break;
-            }*/
-            for (int i = 0; i < 6; i++) {
-                Plane& plane = frustum.planes[i];
-                FVector p = aabb.GetPositiveVertex(plane.normal);
-                float dist = p.Dot(plane.normal) + plane.d;
-                if (dist < 0) {
-                    bIsInsideFrustum = false;
-                    break;
-                }
-            }
-            int SubMeshIdx = 0;
-            if (bIsInsideFrustum) {
+            if (IsInsideFrustum(pStaticMeshComp))
+            {
                 FMeshData Data;
+                int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
                 Data.WorldMatrix = JungleMath::CreateModelMatrix(
                     pStaticMeshComp->GetWorldLocation(),
@@ -1068,6 +1041,39 @@ void FRenderer::PrepareRender()
         */
     }
     //std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
+}
+
+bool FRenderer::IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const
+{
+    Frustum Frustum = ActiveViewport->GetFrustum();
+    FVector Location = StaticMeshComp->GetWorldLocation();
+    FBoundingBox AABB = StaticMeshComp->AABB;
+    AABB.min = AABB.min + Location;
+    AABB.max = AABB.max + Location;
+    /*TArray<FVector> vertices = aabb.GetVertices();
+    for (const FVector& vertex : vertices) {
+        for (int i = 0; i < 6; i++) {
+            Plane& plane = frustum.planes[i];
+            float dist = vertex.Dot(plane.normal) + plane.d;
+            if (dist < 0) {
+                bIsInsideFrustum = false;
+                break;
+            }
+        }
+        if (!bIsInsideFrustum)
+            break;
+    }*/
+    for (int i = 0; i < 6; ++i)
+    {
+        const Plane& Plane = Frustum.planes[i];
+        FVector PositiveVector = AABB.GetPositiveVertex(Plane.normal);
+        float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
+        if (Dist < 0)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void FRenderer::ClearRenderArr()
