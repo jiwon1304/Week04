@@ -992,6 +992,37 @@ void FRenderer::RenderBatch(
 
 void FRenderer::PrepareRender()
 {
+    TArray<UPrimitiveComponent*> components;
+    Frustum Frustum = ActiveViewport->GetFrustum();
+    FOctreeNode* octree = World->GetOctree();
+    uint32 componentCount = octree->CountAllComponents();
+    octree->FrustumCull(Frustum, components);
+    for (const auto comp : components) {
+        if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(comp)) {
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+            FMeshData Data;
+            int SubMeshIdx = 0;
+            Data.SubMeshIndex = SubMeshIdx;
+            Data.WorldMatrix = JungleMath::CreateModelMatrix(
+                pStaticMeshComp->GetWorldLocation(),
+                pStaticMeshComp->GetWorldRotation(),
+                pStaticMeshComp->GetWorldScale()
+            );
+            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.IndexStart = subMesh.IndexStart;
+                Data.IndexCount = subMesh.IndexCount;
+                MaterialMeshMap[Material][StaticMesh].push_back(Data);
+                SubMeshIdx++;
+            }
+        }
+    }
     for (const auto iter : TObjectRange<USceneComponent>())
     {
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
@@ -999,9 +1030,8 @@ void FRenderer::PrepareRender()
             GizmoObjs.Add(pGizmoComp);
         }
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
-        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
+        /*else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
         {
-<<<<<<< Updated upstream
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
             if (!StaticMesh)
             {
@@ -1010,35 +1040,6 @@ void FRenderer::PrepareRender()
             
             if (IsInsideFrustum(pStaticMeshComp))
             {
-=======
-            bool bIsInsideFrustum = true;
-            Frustum frustum = ActiveViewport->GetFrustum();
-            FBoundingBox aabb = pStaticMeshComp->GetBoundingBox();
-            /*TArray<FVector> vertices = aabb.GetVertices();
-            for (const FVector& vertex : vertices) {
-                for (int i = 0; i < 6; i++) {
-                    Plane& plane = frustum.planes[i];
-                    float dist = vertex.Dot(plane.normal) + plane.d;
-                    if (dist < 0) {
-                        bIsInsideFrustum = false;
-                        break;
-                    }
-                }
-                if (!bIsInsideFrustum)
-                    break;
-            }*/
-            for (int i = 0; i < 6; i++) {
-                Plane& plane = frustum.planes[i];
-                FVector p = aabb.GetPositiveVertex(plane.normal);
-                float dist = p.Dot(plane.normal) + plane.d;
-                if (dist < 0) {
-                    bIsInsideFrustum = false;
-                    break;
-                }
-            }
-            int SubMeshIdx = 0;
-            if (bIsInsideFrustum) {
->>>>>>> Stashed changes
                 FMeshData Data;
                 int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
@@ -1057,7 +1058,7 @@ void FRenderer::PrepareRender()
                     SubMeshIdx++;
                 }
             }
-        }
+        }*/
         
         /* W04 - do not render those comps
         if (UBillboardComponent* pBillboardComp = Cast<UBillboardComponent>(iter))
