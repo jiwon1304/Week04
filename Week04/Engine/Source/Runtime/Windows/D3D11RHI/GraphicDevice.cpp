@@ -125,6 +125,18 @@ void FGraphicsDevice::CreateDepthStencilState()
         return;
     }
 
+    // 깊이 테스트 활성화
+    dsDesc.DepthEnable = TRUE;
+    // 깊이 쓰기 비활성화 (중요!)
+    dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    // 깊이 비교 함수 (LESS_EQUAL 사용 권장)
+    dsDesc.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    HRESULT hr1 = Device->CreateDepthStencilState(&dsDesc, &ReadonlyDepthStencilState);
+    if (FAILED(hr1)) {
+        // 오류 처리
+        return;
+    }
+    
     D3D11_DEPTH_STENCIL_DESC depthStencilDesc = {};
     depthStencilDesc.DepthEnable = FALSE;  // 깊이 테스트 유지
     depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;  // 깊이 버퍼에 쓰지 않음
@@ -287,20 +299,33 @@ void FGraphicsDevice::SwapBuffer()
     SwapChain->Present(0, 0);
 }
 
+void FGraphicsDevice::PrepareZPrepass()
+{
+    ID3D11RenderTargetView* nullRTV = nullptr;
+    DeviceContext->OMSetRenderTargets(1, &nullRTV, DepthStencilView);
+    
+    DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0); // 깊이 버퍼 초기화 추가
+    DeviceContext->OMSetDepthStencilState(DepthStencilState,0);
+
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
+    DeviceContext->RSSetState(CurrentRasterizer); //레스터 라이저 상태 설정
+    
+    DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
+    DeviceContext->RSSetState(CurrentRasterizer); //레스터 라이저 상태 설정
+}
+
 void FGraphicsDevice::Prepare()
 {
     DeviceContext->ClearRenderTargetView(FrameBufferRTV, ClearColor); // 렌더 타겟 뷰에 저장된 이전 프레임 데이터를 삭제
     DeviceContext->ClearRenderTargetView(UUIDFrameBufferRTV, ClearColor); // 렌더 타겟 뷰에 저장된 이전 프레임 데이터를 삭제
-    DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0); // 깊이 버퍼 초기화 추가
+    // DeviceContext->ClearDepthStencilView(DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0); // 깊이 버퍼 초기화 추가
 
     DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
-
-    //DeviceContext->RSSetViewports(1, &ViewportInfo); // GPU가 화면을 렌더링할 영역 설정
     DeviceContext->RSSetState(CurrentRasterizer); //레스터 라이저 상태 설정
+    
+    DeviceContext->OMSetDepthStencilState(ReadonlyDepthStencilState, 0);
 
-    DeviceContext->OMSetDepthStencilState(DepthStencilState, 0);
-
-    DeviceContext->OMSetRenderTargets(1, RTVs, DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
+    DeviceContext->OMSetRenderTargets(2, RTVs, DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
     DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff); // 블렌뎅 상태 설정, 기본블렌딩 상태임
 }
 
@@ -378,11 +403,6 @@ void FGraphicsDevice::ChangeRasterizer(EViewModeIndex evi)
         break;
     }
     DeviceContext->RSSetState(CurrentRasterizer); //레스터 라이저 상태 설정
-}
-
-void FGraphicsDevice::ChangeDepthStencilState(ID3D11DepthStencilState* newDetptStencil)
-{
-    DeviceContext->OMSetDepthStencilState(newDetptStencil, 0);
 }
 
 uint32 FGraphicsDevice::GetPixelUUID(POINT pt)

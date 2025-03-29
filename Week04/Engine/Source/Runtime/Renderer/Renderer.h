@@ -28,6 +28,7 @@ private:
     float litFlag = 0;
 public:
     FGraphicsDevice* Graphics;
+    ID3D11VertexShader* ZPrepassVertexShader = nullptr;
     ID3D11VertexShader* VertexShader = nullptr;
     ID3D11PixelShader* PixelShader = nullptr;
     ID3D11InputLayout* InputLayout = nullptr;
@@ -57,6 +58,7 @@ public:
     //Release
     void Release();
     void ReleaseShader();
+    void PrepareZPrepassShader() const;
     void ReleaseBuffer(ID3D11Buffer*& Buffer) const;
     void ReleaseConstantBuffer();
 
@@ -81,6 +83,7 @@ public:
     // update
     void UpdateLightBuffer() const;
     void UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const;
+    void UpdateSimpleConstant(const FMatrix& MVP) const;
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;
@@ -144,6 +147,7 @@ public: // line shader
     void PrepareRender();
     bool IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const;
     void ClearRenderArr();
+    void RenderZPrepass();
     void Render();
     void RenderStaticMeshes();
     void RenderGizmos();

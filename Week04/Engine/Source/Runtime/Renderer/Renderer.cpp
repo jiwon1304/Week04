@@ -65,6 +65,9 @@ void FRenderer::CreateShader()
     D3DCompileFromFile(L"Shaders/StaticMeshPixelShader.hlsl", nullptr, nullptr, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
     Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &PixelShader);
 
+    D3DCompileFromFile(L"Shaders/ZPrepassVertexShader.hlsl", nullptr, nullptr, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
+    Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &ZPrepassVertexShader);
+    
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -99,6 +102,18 @@ void FRenderer::ReleaseShader()
     {
         VertexShader->Release();
         VertexShader = nullptr;
+    }
+}
+
+void FRenderer::PrepareZPrepassShader() const
+{
+    Graphics->DeviceContext->VSSetShader(ZPrepassVertexShader, nullptr, 0);
+    Graphics->DeviceContext->PSSetShader(nullptr, nullptr, 0);
+    Graphics->DeviceContext->IASetInputLayout(InputLayout);
+
+    if (ConstantBuffer)
+    {
+        Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &ConstantBuffer);
     }
 }
 
@@ -456,6 +471,21 @@ void FRenderer::UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSe
             constants->MVP = MVP;
             constants->UUIDColor = UUIDColor;
             constants->IsSelected = IsSelected;
+        }
+        Graphics->DeviceContext->Unmap(ConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
+    }
+}
+
+void FRenderer::UpdateSimpleConstant(const FMatrix& MVP) const
+{
+    if (ConstantBuffer)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR; // GPU�� �޸� �ּ� ����
+
+        Graphics->DeviceContext->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
+            constants->MVP = MVP;
         }
         Graphics->DeviceContext->Unmap(ConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
     }
@@ -1090,6 +1120,34 @@ void FRenderer::ClearRenderArr()
     GizmoObjs.Empty();
     //BillboardObjs.Empty();
     //LightObjs.Empty();
+}
+
+void FRenderer::RenderZPrepass()
+{
+    PrepareZPrepassShader();
+    
+    for (auto& [Material, DataMap] : MaterialMeshMap)
+    {
+        for (const auto& [StaticMesh, DataArray] : DataMap)
+        {
+            // 버텍스 버퍼 업데이트
+            OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+            UINT offset = 0;
+            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+            if (RenderData->IndexBuffer)
+            {
+                Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+            }
+            for (const FMeshData& Data : DataArray)
+            {
+                FMatrix MVP = Data.WorldMatrix * ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+                UpdateSimpleConstant(MVP);
+
+                // Draw
+                Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+            }
+        }
+    }
 }
 
 void FRenderer::Render()

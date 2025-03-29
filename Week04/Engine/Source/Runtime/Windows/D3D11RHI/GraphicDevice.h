@@ -32,6 +32,7 @@ public:
     ID3D11Texture2D* DepthStencilBuffer = nullptr;  // 깊이/스텐실 텍스처
     ID3D11DepthStencilView* DepthStencilView = nullptr;  // 깊이/스텐실 뷰
     ID3D11DepthStencilState* DepthStencilState = nullptr;
+    ID3D11DepthStencilState* ReadonlyDepthStencilState = nullptr;
     FLOAT ClearColor[4] = { 0.025f, 0.025f, 0.025f, 1.0f }; // 화면을 초기화(clear) 할 때 사용할 색상(RGBA)
 
     ID3D11DepthStencilState* DepthStateDisable = nullptr;
@@ -48,6 +49,7 @@ public:
     void ReleaseDepthStencilResources();
     void Release();
     void SwapBuffer();
+    void PrepareZPrepass();
     void Prepare();
     void Prepare(D3D11_VIEWPORT* viewport);
     void OnResize(HWND hWindow);

@@ -387,6 +387,17 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="Shaders\ZPrepareVertexShader.hlsl">
+      <ObjectFileOutput>C:\Users\Jungle\Desktop\Repos\Week04\Binaries\x64\Release\%(Filename).cso</ObjectFileOutput>
+      <TrackerLogDirectory>C:\Users\Jungle\Desktop\Repos\Week04\Intermediate\Build\x64\Release\Engine.tlog\</TrackerLogDirectory>
+      <EntryPointName>main</EntryPointName>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <ShaderModel>5.0</ShaderModel>
+      <MinimalRebuildFromTracking>true</MinimalRebuildFromTracking>
+      <DisableOptimizations>false</DisableOptimizations>
+      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <Content Include=".editorconfig" />

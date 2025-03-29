@@ -138,8 +138,10 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
 void FEngineLoop::Render()
 {
-    GraphicDevice.Prepare();
     Renderer.PrepareRender();
+    GraphicDevice.PrepareZPrepass();
+    Renderer.RenderZPrepass();
+    GraphicDevice.Prepare();
     Renderer.Render();
     
     /*if (LevelEditor->IsMultiViewport())
