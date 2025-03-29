@@ -1,4 +1,4 @@
-#include "Player.h"
+﻿#include "Player.h"
 
 #include "FWindowsPlatformTime.h"
 #include "UnrealClient.h"
@@ -63,8 +63,11 @@ void AEditorPlayer::Input(float DeltaTime)
 
             const auto& ActiveViewport = GetEngine().GetLevelEditor()->GetActiveViewportClient();
             ScreenToViewSpace(mousePos.x, mousePos.y, ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix(), pickPosition);
-            bool res = PickGizmo(pickPosition);
-            if (!res) PickActor(pickPosition);
+            
+            if (!PickGizmo(pickPosition))
+            {
+                PickActor(pickPosition);
+            }
             
             curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
             accumulatedPickingTime += curPickingTime;

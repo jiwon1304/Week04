@@ -1,29 +1,9 @@
-Texture2D Textures : register(t0);
-SamplerState Sampler : register(s0);
-
-cbuffer MatrixConstants : register(b0)
-{
-    row_major float4x4 MVP;
-    float4 UUID;
-    bool isSelected;
-    float3 Pad0;
-};
+#include "ShaderBuffers.hlsl"
 
 struct FMaterial
 {
     float3 DiffuseColor;
 };
-
-cbuffer MaterialConstants : register(b1)
-{
-    float3 DiffuseColor;
-}
-
-cbuffer FlagConstants : register(b3)
-{
-    bool IsGizmo;
-    float3 flagPad0;
-}
 
 struct PS_INPUT
 {
@@ -59,7 +39,7 @@ PS_OUTPUT mainPS(PS_INPUT input)
     
     if (isSelected)
     {
-        FinalColor += float3(0.2f, 0.2f, 0.0f); // 노란색 틴트로 하이라이트
+        FinalColor += float3(0.4f, 0.4f, 0.0f); // 노란색 틴트로 하이라이트
     }
     
     output.color = float4(FinalColor, 1.f);
