@@ -20,6 +20,7 @@
 #include "PropertyEditor/ShowFlags.h"
 #include "UObject/UObjectIterator.h"
 #include "Components/SkySphereComponent.h"
+#include "LevelEditor/SLevelEditor.h"
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -33,6 +34,7 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
 
     // W04 - Setup
     PrepareShader(); // W04 - 쉐이더 설정은 한번만
+    InitOcclusionQuery();
 }
 
 void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport)
@@ -79,6 +81,8 @@ void FRenderer::CreateShader()
     Stride = sizeof(FVertexSimple);
     VertexShaderCSO->Release();
     PixelShaderCSO->Release();
+
+    CreateOcclusionShader();
 }
 
 void FRenderer::ReleaseShader()
@@ -992,6 +996,9 @@ void FRenderer::RenderBatch(
 
 void FRenderer::PrepareRender()
 {
+
+    FrustumMeshes.Empty();
+
     for (const auto iter : TObjectRange<USceneComponent>())
     {
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
@@ -1009,23 +1016,7 @@ void FRenderer::PrepareRender()
             
             if (IsInsideFrustum(pStaticMeshComp))
             {
-                FMeshData Data;
-                int SubMeshIdx = 0;
-                Data.SubMeshIndex = SubMeshIdx;
-                Data.WorldMatrix = JungleMath::CreateModelMatrix(
-                    pStaticMeshComp->GetWorldLocation(),
-                    pStaticMeshComp->GetWorldRotation(),
-                    pStaticMeshComp->GetWorldScale()
-                );
-                Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
-                for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-                {
-                    UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-                    Data.IndexStart = subMesh.IndexStart;
-                    Data.IndexCount = subMesh.IndexCount;
-                    MaterialMeshMap[Material][StaticMesh].push_back(Data);
-                    SubMeshIdx++;
-                }
+                FrustumMeshes.Add(pStaticMeshComp);
             }
         }
         
@@ -1040,6 +1031,37 @@ void FRenderer::PrepareRender()
         }
         */
     }
+
+    SortMeshRoughly();
+    QueryOcclusion();
+
+    Graphics->Prepare();
+
+    for (auto &pStaticMeshComp : DisOccludedMeshes)
+    {
+        UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+        FMeshData Data;
+        int SubMeshIdx = 0;
+        Data.SubMeshIndex = SubMeshIdx;
+        Data.WorldMatrix = JungleMath::CreateModelMatrix(
+            pStaticMeshComp->GetWorldLocation(),
+            pStaticMeshComp->GetWorldRotation(),
+            pStaticMeshComp->GetWorldScale()
+        );
+        Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+        for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+        {
+            UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+            Data.IndexStart = subMesh.IndexStart;
+            Data.IndexCount = subMesh.IndexCount;
+            MaterialMeshMap[Material][StaticMesh].push_back(Data);
+            SubMeshIdx++;
+        }
+
+    }
+
+
+
     //std::sort(SortedStaticMeshObjs.begin(), SortedStaticMeshObjs.end(), FRenderer::SortActorArray);
 }
 
@@ -1094,7 +1116,7 @@ void FRenderer::ClearRenderArr()
 
 void FRenderer::Render()
 {
-    // Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행
+     Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행 -> depthbuffer추가로 필요
     
     // Graphics->ChangeRasterizer(VMI_Lit);
     
@@ -1123,7 +1145,7 @@ void FRenderer::Render()
 
 void FRenderer::RenderStaticMeshes()
 {
-    PrepareShader();
+     PrepareShader();
 
     /*
     UMaterial* prevMaterial = nullptr;
@@ -1310,3 +1332,251 @@ bool FRenderer::SortActorArray(const MeshMaterialPair& a, const MeshMaterialPair
     // 2차: 변환 인덱스 (같은 오브젝트의 부분들을 연속해서 처리)
     return a.mesh < b.mesh;
 }
+
+
+// 수정필요 : 받아오는 array / map이 없음.
+
+void FRenderer::SortMeshRoughly()
+{
+    //std::array<UStaticMeshComponent*, DISTANCE_BIN_NUM> bins;
+    for (auto& bin : MeshesSortedByDistance)
+    {
+        bin.Empty();
+    }
+    MeshesSortedByDistance.empty();
+    for (UStaticMeshComponent* MeshComp : FrustumMeshes) {
+        FVector Disp = MeshComp->GetWorldLocation() - ActiveViewport->ViewTransformPerspective.GetLocation();
+        float dist = Disp.Magnitude();
+        dist = log(dist);
+        dist = dist < 0 ? 0 : dist;
+        int binIndex = std::min(int(dist), OCCLUSION_DISTANCE_BIN_NUM - 1);
+        MeshesSortedByDistance[binIndex].Add(MeshComp);
+    }
+}
+
+void FRenderer::InitOcclusionQuery()
+{
+    D3D11_TEXTURE2D_DESC DepthStencilBufferDesc = {};
+    DepthStencilBufferDesc.Width = 512;
+    DepthStencilBufferDesc.Height = 512;
+    DepthStencilBufferDesc.MipLevels = 1;
+    DepthStencilBufferDesc.ArraySize = 1;
+    DepthStencilBufferDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+    DepthStencilBufferDesc.SampleDesc.Count = 1;
+    DepthStencilBufferDesc.SampleDesc.Quality = 0;
+    DepthStencilBufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    DepthStencilBufferDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    DepthStencilBufferDesc.CPUAccessFlags = 0;
+    DepthStencilBufferDesc.MiscFlags = 0;
+
+    HRESULT hr = Graphics->Device->CreateTexture2D(&DepthStencilBufferDesc, nullptr, &OcclusionTexture);
+    if (FAILED(hr))
+    {
+        std::cerr << "Failed to create Occlusion Texture!" << std::endl;
+        return;
+    }
+    D3D11_DEPTH_STENCIL_VIEW_DESC DepthStencilViewDesc = {};
+    DepthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DepthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    DepthStencilViewDesc.Texture2D.MipSlice = 0;
+
+    hr = Graphics->Device->CreateDepthStencilView(OcclusionTexture, &DepthStencilViewDesc, &OcclusionDSV);
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC depthSRVDesc = {};
+    depthSRVDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    depthSRVDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    depthSRVDesc.Texture2D.MostDetailedMip = 0;
+    depthSRVDesc.Texture2D.MipLevels = 1;
+
+    hr = Graphics->Device->CreateShaderResourceView(OcclusionTexture, &depthSRVDesc, &OcclusionSRV);
+
+    D3D11_QUERY_DESC queryDesc = {};
+    queryDesc.Query = D3D11_QUERY_OCCLUSION; // Occlusion Query 사용
+    queryDesc.MiscFlags = 0;
+
+    hr = Graphics->Device->CreateQuery(&queryDesc, &OcclusionQuery);
+    if (FAILED(hr)) {
+        std::cerr << "Failed to create Occlusion Query!" << std::endl;
+    }
+}
+
+void FRenderer::PrepareOcclusion()
+{
+    // 크기만 가져와서 rasterizer에서 사용하도록 만듦.
+    D3D11_VIEWPORT Viewport = {};
+    Viewport.TopLeftX = 0;
+    Viewport.TopLeftY = 0;
+    Viewport.Width = 512;
+    Viewport.Height = 512;
+    Viewport.MinDepth = 0.0f;
+    Viewport.MaxDepth = 1.0f;
+    Graphics->DeviceContext->RSSetViewports(1, &Viewport);
+
+
+    Graphics->DeviceContext->VSSetShader(OcclusionVertexShader, nullptr, 0);
+    Graphics->DeviceContext->PSSetShader(OcclusionPixelShader, nullptr, 0);
+    Graphics->DeviceContext->IASetInputLayout(nullptr); // 쉐이더 내부에서 사용.
+    //Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionConstantBuffer);
+    //Graphics->DeviceContext->IASetIndexBuffer(nullptr,DXGI_FORMAT,0);
+
+    Graphics->DeviceContext->ClearDepthStencilView(OcclusionDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+    Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
+    Graphics->DeviceContext->OMSetRenderTargets(0, nullptr, OcclusionDSV); // 컬러 버퍼 끄기
+
+}
+
+UINT32 NumDisOccluded;
+
+void FRenderer::QueryOcclusion()
+{
+    //return;
+    DisOccludedMeshes.Empty();
+    PrepareOcclusion();
+    FViewportCameraTransform CameraTransform = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective;
+
+    FVector CameraLocation = CameraTransform.GetLocation();
+    FMatrix VP = ActiveViewport->GetViewMatrix() * ActiveViewport->GetProjectionMatrix();
+
+    D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+    Graphics->DeviceContext->Map(OcclusionConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+    {
+        FDepthOnlyShaderConstants* constants = static_cast<FDepthOnlyShaderConstants*>(ConstantBufferMSR.pData);
+        constants->ViewProjection = VP;
+        constants->CameraPos = CameraLocation;
+    }
+    Graphics->DeviceContext->Unmap(OcclusionConstantBuffer, 0);
+
+    // 가까운거부터
+    for (auto& Meshes : MeshesSortedByDistance)
+    {
+        for (auto& StaticMeshComp : Meshes)
+        {
+            //RenderOccluder(StaticMeshComp);
+            //DisOccludedMeshes.Add(StaticMeshComp);
+            //continue;
+
+            Graphics->DeviceContext->Begin(OcclusionQuery);
+            RenderOccluder(StaticMeshComp);
+
+            //// Draw
+            ////Graphics->DeviceContext->DrawIndexed(StaticMeshComp->GetStaticMesh()->GetRenderData()->Indices.Num(), 0, 0);
+            Graphics->DeviceContext->End(OcclusionQuery);
+
+            UINT64 pixelCount = 0;
+
+            //// GPU가 작업을 끝낼 때까지 대기
+            while (Graphics->DeviceContext->GetData(OcclusionQuery, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {
+                 //계속 대기 (Sleep을 넣어서 CPU 과부하 방지 가능)
+            }
+
+            //// pixelCount가 0이면 오브젝트는 완전히 가려짐
+            if (pixelCount > 0) {
+                DisOccludedMeshes.Add(StaticMeshComp);
+                RenderOccludee(StaticMeshComp);
+            }
+            
+        }
+    }
+    NumDisOccluded = DisOccludedMeshes.Num();
+
+}
+
+void FRenderer::RenderOccluder(UStaticMeshComponent* StaticMeshComp)
+{
+    if (!GEngineLoop.GetLevelEditor()->GetActiveViewportClient()) return;
+    
+    FVector ActorLocation = StaticMeshComp->GetWorldLocation();
+
+    float OccluderSize = StaticMeshComp->GetStaticMesh()->GetRenderData()->OccluderRadius;
+
+    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
+    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
+
+    D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+    Graphics->DeviceContext->Map(OcclusionObjectInfoBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+    {
+        FOcclusionInformation* constants = static_cast<FOcclusionInformation*>(ConstantBufferMSR.pData);
+        constants->Position = ActorLocation;
+        constants->Radius = OccluderSize;
+    }
+    Graphics->DeviceContext->Unmap(OcclusionObjectInfoBuffer, 0);
+
+    Graphics->DeviceContext->Draw(6, 0);
+}
+
+
+void FRenderer::RenderOccludee(UStaticMeshComponent* StaticMeshComp)
+{
+    if (!GEngineLoop.GetLevelEditor()->GetActiveViewportClient()) return;
+
+    FVector ActorLocation = StaticMeshComp->GetWorldLocation();
+
+    float OccludeeSize = StaticMeshComp->GetStaticMesh()->GetRenderData()->OccludeeRadius;
+
+    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
+    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
+
+    D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+    Graphics->DeviceContext->Map(OcclusionObjectInfoBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+    {
+        FOcclusionInformation* constants = static_cast<FOcclusionInformation*>(ConstantBufferMSR.pData);
+        constants->Position = ActorLocation;
+        constants->Radius = OccludeeSize;
+    }
+    Graphics->DeviceContext->Unmap(OcclusionObjectInfoBuffer, 0);
+
+    Graphics->DeviceContext->Draw(6, 0);
+}
+
+
+void FRenderer::CreateOcclusionShader()
+{
+    ID3DBlob* VertexShaderCSO;
+    ID3DBlob* PixelShaderCSO;
+
+    HRESULT hr;
+    ID3DBlob* errorBlob = nullptr;
+    hr = D3DCompileFromFile(L"Shaders/DepthOnlyShader.hlsl", nullptr, nullptr, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, &errorBlob);
+    if (FAILED(hr)) {
+        if (errorBlob) {
+            OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+            errorBlob->Release();
+        }
+    }
+    hr = Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &OcclusionVertexShader);
+
+    hr = D3DCompileFromFile(L"Shaders/DepthOnlyShader.hlsl", nullptr, nullptr, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, &errorBlob);
+    hr = Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &OcclusionPixelShader);
+
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    
+    // 사용안함.
+    //Graphics->Device->CreateInputLayout(
+    //    layout, ARRAYSIZE(layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &OcclusionInputLayout
+    //);
+
+    StriedOcclusion = sizeof(FVector);
+    VertexShaderCSO->Release();
+    PixelShaderCSO->Release();
+
+    D3D11_BUFFER_DESC constantbufferdesc = {};
+    constantbufferdesc.ByteWidth = sizeof(FDepthOnlyShaderConstants) + 0xf & 0xfffffff0;
+    constantbufferdesc.Usage = D3D11_USAGE_DYNAMIC;
+    constantbufferdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    constantbufferdesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &OcclusionConstantBuffer);
+    
+    constantbufferdesc = {};
+    constantbufferdesc.ByteWidth = sizeof(FOcclusionInformation) + 0xf & 0xfffffff0;
+    constantbufferdesc.Usage = D3D11_USAGE_DYNAMIC;
+    constantbufferdesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    constantbufferdesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+
+    Graphics->Device->CreateBuffer(&constantbufferdesc, nullptr, &OcclusionObjectInfoBuffer);
+
+}
+
+

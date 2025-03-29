@@ -129,6 +129,14 @@ namespace OBJ
 
         FVector BoundingBoxMin;
         FVector BoundingBoxMax;
+
+
+        // for cullings
+        float OccluderRadius;
+        float OccludeeRadius;
+
+        //FVector OccluderExtents;
+        //FVector OccludeeExtents;
     };
 }
 
@@ -337,8 +345,20 @@ struct FTextureConstants {
     float pad1;
 };
 
+struct FOcclusionInformation {
+    FVector Position;
+    float Radius;
+};
+
+struct FDepthOnlyShaderConstants {
+    //FMatrix World;
+    FMatrix ViewProjection;
+    FVector CameraPos;
+};
+    
 struct MeshMaterialPair {
     uint32 meshIndex;
     UStaticMeshComponent* mesh;
     UMaterial* material;
 };
+

@@ -7,6 +7,8 @@
 #include "World.h"
 #include "Actors/Player.h"
 
+extern UINT32 NumDisOccluded;
+
 // 싱글톤 인스턴스 반환
 Console& Console::GetInstance() {
     static Console instance;
@@ -48,7 +50,7 @@ void StatOverlay::Render(ID3D11DeviceContext* context, UINT width, UINT height)
                 frameCount = 0;
                 lastTime = currentTime;
             }
-            ImGui::Text("FPS: %.2f", fps);
+            ImGui::Text("FPS: %.2f / NumDisOccluded : %d", fps, NumDisOccluded);
         }
 
         AEditorPlayer* player = GEngineLoop.GetWorld()->GetEditorPlayer();
