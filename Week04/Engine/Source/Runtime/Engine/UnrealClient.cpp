@@ -20,6 +20,7 @@ void FViewport::ResizeViewport(const DXGI_SWAP_CHAIN_DESC& swapchaindesc)
 {
     float width = (float)swapchaindesc.BufferDesc.Width;
     float height = (float)swapchaindesc.BufferDesc.Height;
+    /* W04
     float halfWidth = width * 0.5f;
     float halfHeight = height * 0.5f;
     switch (viewLocation)
@@ -51,6 +52,11 @@ void FViewport::ResizeViewport(const DXGI_SWAP_CHAIN_DESC& swapchaindesc)
     default:
         break;
     }
+    */
+    viewport.TopLeftX = 0.0f;
+    viewport.TopLeftY = 0.0f;
+    viewport.Width = width;
+    viewport.Height = height;
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
 }
