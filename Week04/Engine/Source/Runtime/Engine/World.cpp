@@ -8,6 +8,7 @@
 #include "Engine/Source/Editor/UnrealEd/SceneMgr.h"
 #include "Classes/Components/StaticMeshComponent.h"
 #include "Engine/StaticMeshActor.h"
+#include "Math/JungleMath.h"
 #include "UnrealEd/EditorViewportClient.h"
 
 

@@ -994,9 +994,13 @@ void FRenderer::PrepareRender()
 {
     for (const auto iter : TObjectRange<USceneComponent>())
     {
+        AActor* SelectedActor = World->GetSelectedActor();
         if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(iter))
         {
-            GizmoObjs.Add(pGizmoComp);
+            if (SelectedActor)
+            {
+                GizmoObjs.Add(pGizmoComp);
+            }
         }
         // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(iter))
@@ -1012,13 +1016,9 @@ void FRenderer::PrepareRender()
                 FMeshData Data;
                 int SubMeshIdx = 0;
                 Data.SubMeshIndex = SubMeshIdx;
-                Data.WorldMatrix = JungleMath::CreateModelMatrix(
-                    pStaticMeshComp->GetWorldLocation(),
-                    pStaticMeshComp->GetWorldRotation(),
-                    pStaticMeshComp->GetWorldScale()
-                );
+                Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
                 Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
-                Data.bIsSelected = World->GetSelectedActor() == pStaticMeshComp->GetOwner();
+                Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
                 for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
                 {
                     UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
