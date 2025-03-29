@@ -315,11 +315,20 @@ struct FMaterialConstants {
 };
 
 struct FConstants {
-    FMatrix MVP;
+    FMatrix WorldMatrix;
     FVector4 UUIDColor;
     bool IsSelected;
     FVector pad;
 };
+
+struct FConstantsView {
+    FMatrix ViewMatrix;
+};
+
+struct FConstantsProjection {
+    FMatrix ProjectionMatrix;
+};
+
 struct FLitUnlitConstants {
     int isLit; // 1 = Lit, 0 = Unlit 
     FVector pad;

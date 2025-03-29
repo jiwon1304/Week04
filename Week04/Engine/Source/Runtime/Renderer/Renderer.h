@@ -32,11 +32,15 @@ public:
     ID3D11PixelShader* PixelShader = nullptr;
     ID3D11InputLayout* InputLayout = nullptr;
     ID3D11Buffer* ConstantBuffer = nullptr;
+
+    ID3D11Buffer* ConstantBufferView = nullptr;
+    ID3D11Buffer* ConstantBufferProjection = nullptr;
+    
     ID3D11Buffer* LightingBuffer = nullptr;
     ID3D11Buffer* FlagBuffer = nullptr;
     ID3D11Buffer* MaterialConstantBuffer = nullptr;
     ID3D11Buffer* SubMeshConstantBuffer = nullptr;
-    ID3D11Buffer* TextureConstantBufer = nullptr;
+    ID3D11Buffer* TextureConstantBuffer = nullptr;
 
     FLighting lightingData;
 
@@ -78,9 +82,16 @@ public:
     ID3D11Buffer* CreateIndexBuffer(uint32* indices, UINT byteWidth) const;
     ID3D11Buffer* CreateIndexBuffer(const TArray<uint32>& indices, UINT byteWidth) const;
 
+    // Setup
+    void BindBuffers();
+    
     // update
     void UpdateLightBuffer() const;
-    void UpdateConstant(const FMatrix& MVP, FVector4 UUIDColor, bool IsSelected) const;
+    void UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const;
+
+    void UpdateViewMatrix(const FMatrix& ViewMatrix) const;
+    void UpdateProjectionMatrix(const FMatrix& ProjectionMatrix) const;
+    
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;

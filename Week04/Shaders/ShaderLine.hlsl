@@ -1,23 +1,5 @@
+#include "ShaderBuffers.hlsl"
 
-cbuffer MatrixBuffer : register(b0)
-{
-    row_major float4x4 MVP;
-};
-
-cbuffer GridParametersData : register(b1)
-{
-    float GridSpacing;
-    int GridCount; // 총 grid 라인 수
-    float3 GridOrigin; // Grid의 중심
-    float Padding;
-};
-cbuffer PrimitiveCounts : register(b3)
-{
-    int BoundingBoxCount; // 렌더링할 AABB의 개수
-    int pad;
-    int ConeCount; // 렌더링할 cone의 개수
-    int pad1;
-};
 struct FBoundingBoxData
 {
     float3 bbMin;
@@ -306,7 +288,10 @@ PS_INPUT mainVS(VS_INPUT input)
     }
 
     // 출력 변환
-    output.Position = mul(float4(pos, 1.0), MVP);
+    output.Position = float4(pos, 1.0);
+    output.Position = mul(output.Position, WorldMatrix);
+    output.Position = mul(output.Position, ViewMatrix);
+    output.Position = mul(output.Position, ProjectionMatrix);
     output.Color = color;
     return output;
 }
