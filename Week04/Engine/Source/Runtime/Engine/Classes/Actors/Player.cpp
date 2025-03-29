@@ -1,4 +1,4 @@
-﻿#include "Player.h"
+#include "Player.h"
 
 #include "FWindowsPlatformTime.h"
 #include "UnrealClient.h"
@@ -15,6 +15,7 @@
 #include "PropertyEditor/ShowFlags.h"
 #include "UnrealEd/EditorViewportClient.h"
 #include "UObject/UObjectIterator.h"
+#include "Engine/OctreeNode.h"
 
 using namespace DirectX;
 
@@ -235,12 +236,19 @@ bool AEditorPlayer::PickGizmo(FVector& pickPosition)
 void AEditorPlayer::PickActor(const FVector& pickPosition)
 {
     if (!(ShowFlags::GetInstance().currentFlags & EEngineShowFlags::SF_Primitives)) return;
-
+    
     const UActorComponent* Possible = nullptr;
     int maxIntersect = 0;
     float minDistance = FLT_MAX;
-    for (const auto iter : TObjectRange<UPrimitiveComponent>())
-    {
+    TArray<UPrimitiveComponent*> Components;
+    Frustum Frustum = GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetFrustum();
+    FOctreeNode* Octree = GetWorld()->GetOctree();
+    FMatrix ViewMatrix = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix();
+    FMatrix InverseView = FMatrix::Inverse(ViewMatrix);
+    FVector WorldPickPosition = InverseView.TransformPosition(pickPosition);
+    FVector RayOrigin = GetEngine().GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective.GetLocation();
+    Octree->QueryByRay(WorldPickPosition, RayOrigin, Components);
+    for (const auto& iter : Components) {
         UPrimitiveComponent* pObj;
         if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
         {
@@ -271,6 +279,38 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
             }
         }
     }
+    /*for (const auto iter : TObjectRange<UPrimitiveComponent>())
+    {
+        UPrimitiveComponent* pObj;
+        if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
+        {
+            pObj = static_cast<UPrimitiveComponent*>(iter);
+        }
+        else
+        {
+            continue;
+        }
+
+        if (pObj && !pObj->IsA<UGizmoBaseComponent>())
+        {
+            float Distance = 0.0f;
+            int currentIntersectCount = 0;
+            if (RayIntersectsObject(pickPosition, pObj, Distance, currentIntersectCount))
+            {
+                if (Distance < minDistance)
+                {
+                    minDistance = Distance;
+                    maxIntersect = currentIntersectCount;
+                    Possible = pObj;
+                }
+                else if (abs(Distance - minDistance) < FLT_EPSILON && currentIntersectCount > maxIntersect)
+                {
+                    maxIntersect = currentIntersectCount;
+                    Possible = pObj;
+                }
+            }
+        }
+    }*/
     if (Possible)
     {
         GetWorld()->SetPickedActor(Possible->GetOwner());
@@ -356,7 +396,9 @@ int AEditorPlayer::RayIntersectsObject(const FVector& pickPosition, USceneCompon
         FVector transformedPick = inverseMatrix.TransformPosition(pickPosition);
         FVector rayDirection = (transformedPick - pickRayOrigin).Normalize();
         
-        intersectCount = obj->CheckRayIntersection(pickRayOrigin, rayDirection, hitDistance);
+        if (UStaticMeshComponent* staticMesh = Cast<UStaticMeshComponent>(obj)) {
+            intersectCount = staticMesh->CheckRayIntersection(pickRayOrigin, rayDirection, hitDistance);
+        }
         return intersectCount;
     }
 }

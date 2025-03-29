@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Define.h"
 
 class UPrimitiveComponent;
@@ -13,6 +13,10 @@ struct FOctreeNode
     bool Insert(UPrimitiveComponent* Component, int32 Depth = 0);
 
     void FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
+
+    bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin, float& tmin, float& tmax);
+
+    void QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps);
 
     uint32 CountAllComponents() const;
 
