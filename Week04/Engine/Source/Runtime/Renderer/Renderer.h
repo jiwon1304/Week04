@@ -10,6 +10,7 @@
 #include "Container/Map.h"
 #include "Container/Set.h"
 
+class UStaticMesh;
 class ULightComponentBase;
 class UWorld;
 class FGraphicsDevice;
@@ -155,21 +156,20 @@ private:
 
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
-        UStaticMeshComponent* StaticMeshComp;
         uint32 SubMeshIndex;
         uint32 IndexStart;
         uint32 IndexCount;
+        FMatrix WorldMatrix;
+        FVector4 EncodeUUID;
+        bool bIsSelected;
     };
 
     /**
      * Key: 머티리얼
      * Value: 해당 머티리얼을 사용하는 서브메시의 배열
      */
-    TMap<UMaterial*, TArray<FMeshData>> MaterialMeshMap; 
+    std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FMeshData>>> MaterialMeshMap; 
 
-    // 스태틱메시를 기준으로 정렬하여 버텍스 버퍼와 인덱스 버퍼를 바꾸는 횟수를 최소화하기 위함
-    static bool SubmeshCmp(const FMeshData& a, const FMeshData& b);
-    
     TArray<UGizmoBaseComponent*> GizmoObjs;
     TArray<UBillboardComponent*> BillboardObjs;
     TArray<ULightComponentBase*> LightObjs;
