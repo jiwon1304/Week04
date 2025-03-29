@@ -10,6 +10,7 @@
 
 FVector FEditorViewportClient::Pivot = FVector(0.0f, 0.0f, 0.0f);
 float FEditorViewportClient::orthoSize = 10.0f;
+
 FEditorViewportClient::FEditorViewportClient()
     : Viewport(nullptr), ViewMode(VMI_Lit), ViewportType(LVT_Perspective), ShowFlag(31)
 {
@@ -43,7 +44,6 @@ void FEditorViewportClient::Tick(float DeltaTime)
     Input(DeltaTime);
     if (bCameraMoved) {
         UpdateViewMatrix();
-        UpdateProjectionMatrix();
         UpdateFrustum();
         bCameraMoved = false;
     }
@@ -280,13 +280,14 @@ void FEditorViewportClient::UpdateViewMatrix()
                 Pivot, FVector(0.0f, 0.0f, 1.0f));
         }
     }
+    FEngineLoop::Renderer.UpdateViewMatrix(View);
 }
 
 void FEditorViewportClient::UpdateProjectionMatrix()
 {
     if (IsPerspective()) {
         Projection = JungleMath::CreateProjectionMatrix(
-            ViewFOV * (3.141592f / 180.0f),
+            XMConvertToRadians(ViewFOV),
             GetViewport()->GetViewport().Width/ GetViewport()->GetViewport().Height,
             nearPlane,
             farPlane
@@ -309,6 +310,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
             farPlane
         );
     }
+    FEngineLoop::Renderer.UpdateProjectionMatrix(Projection);
 }
 
 void FEditorViewportClient::UpdateFrustum()
@@ -487,4 +489,101 @@ FVector FViewportCameraTransform::GetUpVector()
 
 FViewportCameraTransform::FViewportCameraTransform()
 {
+}
+
+void Frustum::CreatePlane(FViewportCameraTransform& camera, float fov, float nearZ, float farZ, float aspectRatio)
+{
+    const FVector point = camera.GetLocation();
+    const FVector forward = camera.GetForwardVector();
+    const FVector up = camera.GetUpVector();
+    const FVector right = camera.GetRightVector();
+
+    const float radFov = fov * PI / 180.0f;
+    const float halfFov = radFov * 0.5f;
+    const float tanFov = tanf(halfFov);
+    const float nearHeight = tanFov * nearZ;
+    const float nearWidth = nearHeight * aspectRatio;
+    const float farHeight = tanFov * farZ;
+    const float farWidth = farHeight * aspectRatio;
+
+    const float deltaZ = farZ - nearZ;
+    const float widthDiff = farWidth - nearWidth;
+    const float heightDiff = farHeight - nearHeight;
+    const FVector fwdDelta = forward * deltaZ;
+
+    // Left plane
+    const FVector leftDir = fwdDelta - right * widthDiff;
+    planes[0].normal = up.Cross(leftDir).Normalize();
+    planes[0].d = -planes[0].normal.Dot(point);
+
+    // Right plane
+    const FVector rightDir = fwdDelta + right * widthDiff;
+    planes[1].normal = rightDir.Cross(up).Normalize();
+    planes[1].d = -planes[1].normal.Dot(point);
+
+    // Top plane
+    const FVector upDir = fwdDelta + up * heightDiff;
+    planes[2].normal = right.Cross(upDir).Normalize();
+    planes[2].d = -planes[2].normal.Dot(point);
+
+    // Bottom plane
+    const FVector downDir = fwdDelta - up * heightDiff;
+    planes[3].normal = downDir.Cross(right).Normalize();
+    planes[3].d = -planes[3].normal.Dot(point);
+
+    // Near plane
+    const FVector nearPoint = point + forward * nearZ;
+    planes[4].normal = forward;
+    planes[4].d = -forward.Dot(nearPoint);
+
+    // Far plane
+    const FVector farPoint = point + forward * farZ;
+    planes[5].normal = forward * -1.f;
+    planes[5].d = forward.Dot(farPoint);
+}
+
+void Frustum::CreatePlaneWithMatrix(const FMatrix& ViewProjection)
+{
+    XMMATRIX ViewProj = ViewProjection.ToXMMATRIX();
+    
+    // 행렬의 각 행을 SIMD 벡터로 로드합니다.
+    XMVECTOR r0 = ViewProj.r[0];
+    XMVECTOR r1 = ViewProj.r[1];
+    XMVECTOR r2 = ViewProj.r[2];
+    XMVECTOR r3 = ViewProj.r[3];
+
+    // SIMD 연산을 사용하여 평면을 계산 및 정규화합니다.
+    XMVECTOR simdPlanes[6];
+    simdPlanes[0] = XMPlaneNormalize(XMVectorAdd(r3, r0));   // Left plane: row3 + row0
+    simdPlanes[1] = XMPlaneNormalize(XMVectorSubtract(r3, r0)); // Right plane: row3 - row0
+    simdPlanes[2] = XMPlaneNormalize(XMVectorAdd(r3, r1));   // Top plane: row3 + row1
+    simdPlanes[3] = XMPlaneNormalize(XMVectorSubtract(r3, r1)); // Bottom plane: row3 - row1
+    simdPlanes[4] = XMPlaneNormalize(XMVectorAdd(r3, r2));   // Near plane: row3 + row2
+    simdPlanes[5] = XMPlaneNormalize(XMVectorSubtract(r3, r2)); // Far plane: row3 - row2
+
+    // SIMD 결과를 Plane 배열에 저장합니다.
+    for (int i = 0; i < 6; ++i)
+    {
+        XMFLOAT4 planeF4;
+        XMStoreFloat4(&planeF4, simdPlanes[i]);
+        planes[i].normal.x = planeF4.x;
+        planes[i].normal.y = planeF4.y;
+        planes[i].normal.z = planeF4.z;
+        planes[i].d = planeF4.w;
+    }
+}
+
+bool Frustum::Intersects(const FBoundingBox& box)
+{
+    for (int i = 0; i < 6; ++i)
+    {
+        const Plane& Plane = planes[i];
+        FVector PositiveVector = box.GetPositiveVertex(Plane.normal);
+        float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
+        if (Dist < 0.45f)
+        {
+            return false;
+        }
+    }
+    return true;
 }

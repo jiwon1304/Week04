@@ -16,10 +16,12 @@ public:
         const FVector& rayOrigin, const FVector& rayDirection,
         const FVector& v0, const FVector& v1, const FVector& v2, float& hitDistance
     );
-    FBoundingBox AABB;
+    FBoundingBox LocalAABB;
+    FBoundingBox WorldAABB;
 
 private:
     FString m_Type;
+    bool bIsWorldBoundBoxInitialized;
 
 public:
     FString GetType() { return m_Type; }
@@ -29,6 +31,8 @@ public:
         m_Type = _Type;
         //staticMesh = FEngineLoop::resourceMgr.GetMesh(m_Type);
     }
-    FBoundingBox GetBoundingBox() { return AABB; }
+    FBoundingBox GetBoundingBox();
+
+    FBoundingBox GetWorldBoundingBox();
 };
 

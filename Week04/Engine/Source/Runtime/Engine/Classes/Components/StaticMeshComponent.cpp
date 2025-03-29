@@ -2,9 +2,38 @@
 
 #include "World.h"
 #include "Launch/EngineLoop.h"
+#include "Math/JungleMath.h"
 #include "UObject/ObjectFactory.h"
 #include "UnrealEd/PrimitiveBatch.h"
 
+
+void UStaticMeshComponent::SetLocation(FVector _newLoc)
+{
+    UMeshComponent::SetLocation(_newLoc);
+
+    W04WorldMatrix = JungleMath::CreateModelMatrix(GetWorldLocation(), GetWorldRotation(), GetWorldScale());
+}
+
+void UStaticMeshComponent::SetRotation(FVector _newRot)
+{
+    UMeshComponent::SetRotation(_newRot);
+
+    W04WorldMatrix = JungleMath::CreateModelMatrix(GetWorldLocation(), GetWorldRotation(), GetWorldScale());
+}
+
+void UStaticMeshComponent::SetRotation(FQuat _newRot)
+{
+    UMeshComponent::SetRotation(_newRot);
+
+    W04WorldMatrix = JungleMath::CreateModelMatrix(GetWorldLocation(), GetWorldRotation(), GetWorldScale());
+}
+
+void UStaticMeshComponent::SetScale(FVector _newScale)
+{
+    UMeshComponent::SetScale(_newScale);
+
+    W04WorldMatrix = JungleMath::CreateModelMatrix(GetWorldLocation(), GetWorldRotation(), GetWorldScale());
+}
 
 uint32 UStaticMeshComponent::GetNumMaterials() const
 {
@@ -65,7 +94,7 @@ void UStaticMeshComponent::GetUsedMaterials(TArray<UMaterial*>& Out) const
 
 int UStaticMeshComponent::CheckRayIntersection(FVector& rayOrigin, FVector& rayDirection, float& pfNearHitDistance)
 {
-    if (!AABB.Intersect(rayOrigin, rayDirection, pfNearHitDistance)) return 0;
+    if (!LocalAABB.Intersect(rayOrigin, rayDirection, pfNearHitDistance)) return 0;
     int nIntersections = 0;
     if (staticMesh == nullptr) return 0;
 

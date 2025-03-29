@@ -3,6 +3,10 @@
 #include "Container/Set.h"
 #include "UObject/ObjectFactory.h"
 #include "UObject/ObjectMacros.h"
+#include "Engine/Classes/Components/PrimitiveComponent.h"
+#include "Engine/Classes/Components/StaticMeshComponent.h"
+#include "Editor/UnrealEd/EditorViewportClient.h"
+#include "CoreUObject/UObject/Casts.h"
 
 class FObjectFactory;
 class AActor;
@@ -13,6 +17,8 @@ class AEditorPlayer;
 class USceneComponent;
 class UTransformGizmo;
 class SceneData;
+
+struct FOctreeNode;
 
 class UWorld : public UObject
 {
@@ -55,6 +61,8 @@ private:
     UCameraComponent* camera = nullptr;
     AEditorPlayer* EditorPlayer = nullptr;
 
+    std::unique_ptr<FOctreeNode> RootOctree = nullptr;
+
 public:
     // UObject* worldGizmo = nullptr; // W04
 
@@ -72,6 +80,8 @@ public:
     // UObject* GetWorldGizmo() const { return worldGizmo; } // W04
     USceneComponent* GetPickingGizmo() const { return pickingGizmo; }
     void SetPickingGizmo(UObject* Object);
+
+    FOctreeNode* GetOctree() { return RootOctree.get(); }
 };
 
 

@@ -1,7 +1,9 @@
 #include "PrimitiveComponent.h"
+#include "Core/Math/MathUtility.h"
 
 UPrimitiveComponent::UPrimitiveComponent()
 {
+    bIsWorldBoundBoxInitialized = false;
 }
 
 UPrimitiveComponent::~UPrimitiveComponent()
@@ -95,4 +97,63 @@ bool UPrimitiveComponent::IntersectRayTriangle(const FVector& rayOrigin, const F
     }
 
     return false;
+}
+
+FBoundingBox UPrimitiveComponent::GetBoundingBox()
+{
+    return LocalAABB;
+}
+
+FBoundingBox UPrimitiveComponent::GetWorldBoundingBox()
+{
+    if (bIsWorldBoundBoxInitialized)
+    {
+        return WorldAABB;
+    }
+
+    WorldAABB = LocalAABB;
+    FVector WorldLocation = GetWorldLocation();
+    FVector WorldScale = GetWorldScale();
+    FVector WorldRotation = GetWorldRotation();
+    
+    if (WorldScale != FVector::OneVector)
+    {
+        FVector BoxCenter = WorldAABB.GetCenter();
+        FVector BoxExtent = WorldAABB.GetExtent();
+        
+        BoxExtent.x *= WorldScale.x;
+        BoxExtent.y *= WorldScale.y;
+        BoxExtent.z *= WorldScale.z;
+        
+        WorldAABB.min = BoxCenter - BoxExtent;
+        WorldAABB.max = BoxCenter + BoxExtent;
+    }
+    
+    if (WorldRotation != FVector::ZeroVector)
+    {
+        FMatrix RotationMatrix = FMatrix::CreateRotation(WorldRotation.x, WorldRotation.y, WorldRotation.z);
+        TArray<FVector> VertexLocations = WorldAABB.GetVertices();
+        FVector min(FLT_MAX, FLT_MAX, FLT_MAX);
+        FVector max = min * -1.0f;
+        
+        for (FVector& VertexLocation : VertexLocations)
+        {
+            VertexLocation = FMatrix::TransformVector(VertexLocation, RotationMatrix);
+            
+            min.x = FMath::Min(min.x, VertexLocation.x);
+            min.y = FMath::Min(min.y, VertexLocation.y);
+            min.z = FMath::Min(min.z, VertexLocation.z);
+            max.x = FMath::Max(max.x, VertexLocation.x);
+            max.y = FMath::Max(max.y, VertexLocation.y);
+            max.z = FMath::Max(max.z, VertexLocation.z);
+        }
+        WorldAABB.min = min;
+        WorldAABB.max = max;
+    }
+    
+    WorldAABB.min = WorldAABB.min + WorldLocation;
+    WorldAABB.max = WorldAABB.max + WorldLocation;
+
+    bIsWorldBoundBoxInitialized = true;
+    return WorldAABB;
 }

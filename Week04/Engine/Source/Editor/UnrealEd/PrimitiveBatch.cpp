@@ -5,7 +5,9 @@ extern FEngineLoop GEngineLoop;
 
 UPrimitiveBatch::UPrimitiveBatch()
 {
-    GenerateGrid(5, 5000);
+    GenerateGrid(5, 100);
+    InitializeVertexBuffer();
+    FEngineLoop::Renderer.UpdateGridConstantBuffer(GridParam); // W04 - 이번에는 동적으로 변경되지 않음.
 }
 
 UPrimitiveBatch::~UPrimitiveBatch()
@@ -33,16 +35,12 @@ void UPrimitiveBatch::GenerateGrid(float spacing, int gridCount)
     GridParam.gridOrigin = { 0,0,0 };
 }
 
-void UPrimitiveBatch::RenderBatch(const FMatrix& View, const FMatrix& Projection)
+void UPrimitiveBatch::RenderBatch()
 {
     FEngineLoop::Renderer.PrepareLineShader();
 
-    InitializeVertexBuffer();
-
-    FMatrix Model = FMatrix::Identity;
-    FMatrix MVP = Model * View * Projection;
-    FEngineLoop::Renderer.UpdateConstant(MVP, FVector4(0,0,0,0), false);
-    FEngineLoop::Renderer.UpdateGridConstantBuffer(GridParam);
+    FMatrix WorldMatrix = FMatrix::Identity;
+    FEngineLoop::Renderer.UpdateConstant(WorldMatrix, FVector4(0,0,0,0), false);
 
     UpdateBoundingBoxResources();
     UpdateConeResources();

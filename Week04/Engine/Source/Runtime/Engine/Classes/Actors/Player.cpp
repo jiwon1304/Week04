@@ -15,6 +15,7 @@
 #include "PropertyEditor/ShowFlags.h"
 #include "UnrealEd/EditorViewportClient.h"
 #include "UObject/UObjectIterator.h"
+#include "Engine/OctreeNode.h"
 
 using namespace DirectX;
 
@@ -52,25 +53,26 @@ void AEditorPlayer::Input(float DeltaTime)
             FScopeCycleCounter pickCounter = FScopeCycleCounter(temp);
             ++TotalPickCount;
             
-            uint32 UUID = GetEngine().GraphicDevice.GetPixelUUID(mousePos);
-            // TArray<UObject*> objectArr = GetWorld()->GetObjectArr(); TODO: 추가해야 함
-            // for ( const auto obj : TObjectRange<USceneComponent>())
-            // {
-            //     if (obj->GetUUID() != UUID) continue;
+            // uint32 UUID = GetEngine().GraphicDevice.GetPixelUUID(mousePos);
             //
-            //     UE_LOG(LogLevel::Display, *obj->GetName());
+            // for (const auto obj : TObjectRange<USceneComponent>())
+            // {
+            //     if (obj->GetUUID() == UUID)
+            //         GetWorld()->SetPickedActor(obj->GetOwner());
             // }
-            // ScreenToClient(GetEngine().hWnd, &mousePos);
-            
-            curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
-            accumulatedPickingTime += curPickingTime;
-            
             FVector pickPosition;
 
             const auto& ActiveViewport = GetEngine().GetLevelEditor()->GetActiveViewportClient();
             ScreenToViewSpace(mousePos.x, mousePos.y, ActiveViewport->GetViewMatrix(), ActiveViewport->GetProjectionMatrix(), pickPosition);
-            bool res = PickGizmo(pickPosition);
-            if (!res) PickActor(pickPosition);
+            
+            if (!PickGizmo(pickPosition))
+            {
+                PickActor(pickPosition);
+            }
+            
+            curPickingTime = FWindowsPlatformTime::ToMilliseconds(pickCounter.Finish());
+            accumulatedPickingTime += curPickingTime;
+            
         }
         else
         {
@@ -234,12 +236,19 @@ bool AEditorPlayer::PickGizmo(FVector& pickPosition)
 void AEditorPlayer::PickActor(const FVector& pickPosition)
 {
     if (!(ShowFlags::GetInstance().currentFlags & EEngineShowFlags::SF_Primitives)) return;
-
+    
     const UActorComponent* Possible = nullptr;
     int maxIntersect = 0;
     float minDistance = FLT_MAX;
-    for (const auto iter : TObjectRange<UPrimitiveComponent>())
-    {
+    TArray<UPrimitiveComponent*> Components;
+    Frustum Frustum = GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetFrustum();
+    FOctreeNode* Octree = GetWorld()->GetOctree();
+    FMatrix ViewMatrix = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix();
+    FMatrix InverseView = FMatrix::Inverse(ViewMatrix);
+    FVector WorldPickPosition = InverseView.TransformPosition(pickPosition);
+    FVector RayOrigin = GetEngine().GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective.GetLocation();
+    Octree->QueryByRay(WorldPickPosition, RayOrigin, Components);
+    for (const auto& iter : Components) {
         UPrimitiveComponent* pObj;
         if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
         {
@@ -270,6 +279,38 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
             }
         }
     }
+    /*for (const auto iter : TObjectRange<UPrimitiveComponent>())
+    {
+        UPrimitiveComponent* pObj;
+        if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
+        {
+            pObj = static_cast<UPrimitiveComponent*>(iter);
+        }
+        else
+        {
+            continue;
+        }
+
+        if (pObj && !pObj->IsA<UGizmoBaseComponent>())
+        {
+            float Distance = 0.0f;
+            int currentIntersectCount = 0;
+            if (RayIntersectsObject(pickPosition, pObj, Distance, currentIntersectCount))
+            {
+                if (Distance < minDistance)
+                {
+                    minDistance = Distance;
+                    maxIntersect = currentIntersectCount;
+                    Possible = pObj;
+                }
+                else if (abs(Distance - minDistance) < FLT_EPSILON && currentIntersectCount > maxIntersect)
+                {
+                    maxIntersect = currentIntersectCount;
+                    Possible = pObj;
+                }
+            }
+        }
+    }*/
     if (Possible)
     {
         GetWorld()->SetPickedActor(Possible->GetOwner());
@@ -301,7 +342,7 @@ void AEditorPlayer::ScreenToViewSpace(int screenX, int screenY, const FMatrix& v
     }
     else
     {
-        pickPosition.z = 1.0f;  // 퍼스펙티브 모드: near plane
+        pickPosition.z = 1.0f;  // 퍼스펙티브 모드: far plane
     }
 }
 
@@ -355,7 +396,9 @@ int AEditorPlayer::RayIntersectsObject(const FVector& pickPosition, USceneCompon
         FVector transformedPick = inverseMatrix.TransformPosition(pickPosition);
         FVector rayDirection = (transformedPick - pickRayOrigin).Normalize();
         
-        intersectCount = obj->CheckRayIntersection(pickRayOrigin, rayDirection, hitDistance);
+        if (UStaticMeshComponent* staticMesh = Cast<UStaticMeshComponent>(obj)) {
+            intersectCount = staticMesh->CheckRayIntersection(pickRayOrigin, rayDirection, hitDistance);
+        }
         return intersectCount;
     }
 }

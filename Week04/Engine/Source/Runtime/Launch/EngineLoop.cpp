@@ -11,6 +11,7 @@
 #include "slate/Widgets/Layout/SSplitter.h"
 #include "LevelEditor/SLevelEditor.h"
 #include "UnrealEd\SceneMgr.h"
+#include "OctreeNode.h"
 
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -37,18 +38,19 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
             }
             if (GEngineLoop.GetLevelEditor())
             {
-                if (GEngineLoop.GetLevelEditor()->GetViewports()[0])
+                if (FEditorViewportClient* ViewportClient = GEngineLoop.GetLevelEditor()->GetViewports()[0].get())
                 {
-                    GEngineLoop.GetLevelEditor()->GetViewports()[0]->ResizeViewport(FEngineLoop::GraphicDevice.SwapchainDesc);
+                    ViewportClient->ResizeViewport(FEngineLoop::GraphicDevice.SwapchainDesc);
+                    FEngineLoop::GraphicDevice.DeviceContext->RSSetViewports(1, &ViewportClient->GetD3DViewport());
                 }
             }
         }
-     Console::GetInstance().OnResize(hWnd);
-    // ControlPanel::GetInstance().OnResize(hWnd);
-    // PropertyPanel::GetInstance().OnResize(hWnd);
-    // Outliner::GetInstance().OnResize(hWnd);
-    // ViewModeDropdown::GetInstance().OnResize(hWnd);
-    // ShowFlags::GetInstance().OnResize(hWnd);
+        Console::GetInstance().OnResize(hWnd);
+        // ControlPanel::GetInstance().OnResize(hWnd);
+        // PropertyPanel::GetInstance().OnResize(hWnd);
+        // Outliner::GetInstance().OnResize(hWnd);
+        // ViewModeDropdown::GetInstance().OnResize(hWnd);
+        // ShowFlags::GetInstance().OnResize(hWnd);
         if (GEngineLoop.GetUnrealEditor())
         {
             GEngineLoop.GetUnrealEditor()->OnResize(hWnd);

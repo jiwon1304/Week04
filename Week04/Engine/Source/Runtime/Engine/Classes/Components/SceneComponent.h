@@ -40,10 +40,10 @@ public:
     FVector GetLocalScale() const { return RelativeScale3D; }
     FVector GetLocalLocation() const { return RelativeLocation; }
 
-    void SetLocation(FVector _newLoc) { RelativeLocation = _newLoc; }
+    virtual void SetLocation(FVector _newLoc) { RelativeLocation = _newLoc; }
     virtual void SetRotation(FVector _newRot);
-    void SetRotation(FQuat _newRot) { QuatRotation = _newRot; }
-    void SetScale(FVector _newScale) { RelativeScale3D = _newScale; }
+    virtual void SetRotation(FQuat _newRot) { QuatRotation = _newRot; }
+    virtual void SetScale(FVector _newScale) { RelativeScale3D = _newScale; }
     void SetupAttachment(USceneComponent* InParent);
 
 private:
