@@ -89,11 +89,18 @@ struct FQuat
     // 오일러 각(roll, pitch, yaw; 단위: 도)로부터 회전 쿼터니언 생성
     static FQuat CreateRotation(float roll, float pitch, float yaw)
     {
-        float radRoll = FMath::DegreesToRadians(roll);
-        float radPitch = FMath::DegreesToRadians(pitch);
-        float radYaw = FMath::DegreesToRadians(yaw);
-        DirectX::XMVECTOR q = DirectX::XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
-        return FQuat::FromSIMD(q);
+        // 각도를 라디안으로 변환
+        float radRoll = roll * (3.14159265359f / 180.0f);
+        float radPitch = pitch * (3.14159265359f / 180.0f);
+        float radYaw = yaw * (3.14159265359f / 180.0f);
+
+        // 각 축에 대한 회전 쿼터니언 계산
+        FQuat qRoll = FQuat(FVector(1.0f, 0.0f, 0.0f), radRoll);  // X축 회전
+        FQuat qPitch = FQuat(FVector(0.0f, 1.0f, 0.0f), radPitch);  // Y축 회전
+        FQuat qYaw = FQuat(FVector(0.0f, 0.0f, 1.0f), radYaw);  // Z축 회전
+
+        // 회전 순서대로 쿼터니언 결합 (Y -> X -> Z)
+        return qRoll * qPitch * qYaw;
     }
 
     // 쿼터니언을 회전 행렬로 변환

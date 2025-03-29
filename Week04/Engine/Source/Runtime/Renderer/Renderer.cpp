@@ -199,8 +199,8 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
     UINT offset = 0;
     Graphics->DeviceContext->IASetVertexBuffers(0, 1, &renderData->VertexBuffer, &Stride, &offset);
 
-    // if (renderData->IndexBuffer)
-    //     Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    if (renderData->IndexBuffer)
+        Graphics->DeviceContext->IASetIndexBuffer(renderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
     if (renderData->MaterialSubsets.Num() == 0)
     {
@@ -210,12 +210,12 @@ void FRenderer::RenderPrimitive(OBJ::FStaticMeshRenderData* renderData, TArray<F
 
     for (int subMeshIndex = 0; subMeshIndex < renderData->MaterialSubsets.Num(); subMeshIndex++)
     {
-        // int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
+        int materialIndex = renderData->MaterialSubsets[subMeshIndex].MaterialIndex;
 
         subMeshIndex == selectedSubMeshIndex ? UpdateSubMeshConstant(true) : UpdateSubMeshConstant(false);
 
-        // overrideMaterial[materialIndex] != nullptr ? 
-            // UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
+        overrideMaterial[materialIndex] != nullptr ? 
+            UpdateMaterial(overrideMaterial[materialIndex]->GetMaterialInfo()) : UpdateMaterial(materials[materialIndex]->Material->GetMaterialInfo());
 
         if (renderData->IndexBuffer)
         {

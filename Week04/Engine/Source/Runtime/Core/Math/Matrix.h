@@ -6,6 +6,8 @@
 #include "Vector4.h"
 #include "Vector.h"
 
+using namespace DirectX;
+
 // 4x4 행렬 연산
 struct FMatrix
 {
@@ -14,47 +16,47 @@ struct FMatrix
 
     FMatrix operator+(const FMatrix& Other) const
     {
-        DirectX::XMMATRIX xm1 = this->ToXMMATRIX();
-        DirectX::XMMATRIX xm2 = Other.ToXMMATRIX();
-        DirectX::XMMATRIX xmOut(
-            DirectX::XMVectorAdd(xm1.r[0], xm2.r[0]),
-            DirectX::XMVectorAdd(xm1.r[1], xm2.r[1]),
-            DirectX::XMVectorAdd(xm1.r[2], xm2.r[2]),
-            DirectX::XMVectorAdd(xm1.r[3], xm2.r[3])
+        XMMATRIX xm1 = this->ToXMMATRIX();
+        XMMATRIX xm2 = Other.ToXMMATRIX();
+        XMMATRIX xmOut(
+            XMVectorAdd(xm1.r[0], xm2.r[0]),
+            XMVectorAdd(xm1.r[1], xm2.r[1]),
+            XMVectorAdd(xm1.r[2], xm2.r[2]),
+            XMVectorAdd(xm1.r[3], xm2.r[3])
         );
         return FromXMMATRIX(xmOut);
     }
 
     FMatrix operator-(const FMatrix& Other) const
     {
-        DirectX::XMMATRIX xm1 = this->ToXMMATRIX();
-        DirectX::XMMATRIX xm2 = Other.ToXMMATRIX();
-        DirectX::XMMATRIX xmOut(
-            DirectX::XMVectorSubtract(xm1.r[0], xm2.r[0]),
-            DirectX::XMVectorSubtract(xm1.r[1], xm2.r[1]),
-            DirectX::XMVectorSubtract(xm1.r[2], xm2.r[2]),
-            DirectX::XMVectorSubtract(xm1.r[3], xm2.r[3])
+        XMMATRIX xm1 = this->ToXMMATRIX();
+        XMMATRIX xm2 = Other.ToXMMATRIX();
+        XMMATRIX xmOut(
+            XMVectorSubtract(xm1.r[0], xm2.r[0]),
+            XMVectorSubtract(xm1.r[1], xm2.r[1]),
+            XMVectorSubtract(xm1.r[2], xm2.r[2]),
+            XMVectorSubtract(xm1.r[3], xm2.r[3])
         );
         return FromXMMATRIX(xmOut);
     }
 
     FMatrix operator*(const FMatrix& Other) const
     {
-        DirectX::XMMATRIX xm1 = this->ToXMMATRIX();
-        DirectX::XMMATRIX xm2 = Other.ToXMMATRIX();
-        DirectX::XMMATRIX xmOut = DirectX::XMMatrixMultiply(xm1, xm2);
+        XMMATRIX xm1 = this->ToXMMATRIX();
+        XMMATRIX xm2 = Other.ToXMMATRIX();
+        XMMATRIX xmOut = XMMatrixMultiply(xm1, xm2);
         return FromXMMATRIX(xmOut);
     }
 
     FMatrix operator*(float Scalar) const
     {
-        DirectX::XMMATRIX xm = this->ToXMMATRIX();
-        DirectX::XMVECTOR s = DirectX::XMVectorReplicate(Scalar);
-        DirectX::XMMATRIX xmOut(
-            DirectX::XMVectorMultiply(xm.r[0], s),
-            DirectX::XMVectorMultiply(xm.r[1], s),
-            DirectX::XMVectorMultiply(xm.r[2], s),
-            DirectX::XMVectorMultiply(xm.r[3], s)
+        XMMATRIX xm = this->ToXMMATRIX();
+        XMVECTOR s = XMVectorReplicate(Scalar);
+        XMMATRIX xmOut(
+            XMVectorMultiply(xm.r[0], s),
+            XMVectorMultiply(xm.r[1], s),
+            XMVectorMultiply(xm.r[2], s),
+            XMVectorMultiply(xm.r[3], s)
         );
         return FromXMMATRIX(xmOut);
     }
@@ -62,112 +64,127 @@ struct FMatrix
     FMatrix operator/(float Scalar) const
     {
         float inv = 1.0f / Scalar;
-        DirectX::XMMATRIX xm = this->ToXMMATRIX();
-        DirectX::XMVECTOR invS = DirectX::XMVectorReplicate(inv);
-        DirectX::XMMATRIX xmOut(
-            DirectX::XMVectorMultiply(xm.r[0], invS),
-            DirectX::XMVectorMultiply(xm.r[1], invS),
-            DirectX::XMVectorMultiply(xm.r[2], invS),
-            DirectX::XMVectorMultiply(xm.r[3], invS)
+        XMMATRIX xm = this->ToXMMATRIX();
+        XMVECTOR invS = XMVectorReplicate(inv);
+        XMMATRIX xmOut(
+            XMVectorMultiply(xm.r[0], invS),
+            XMVectorMultiply(xm.r[1], invS),
+            XMVectorMultiply(xm.r[2], invS),
+            XMVectorMultiply(xm.r[3], invS)
         );
         return FromXMMATRIX(xmOut);
     }
 
-    float* operator[](int row)
-    {
-        return M[row];
-    }
-
-    const float* operator[](int row) const
-    {
-        return M[row];
-    }
+    float* operator[](int row) { return M[row]; }
+    const float* operator[](int row) const { return M[row]; }
 
     static FMatrix Transpose(const FMatrix& Mat)
     {
-        DirectX::XMMATRIX xm = Mat.ToXMMATRIX();
-        DirectX::XMMATRIX xmT = DirectX::XMMatrixTranspose(xm);
+        XMMATRIX xm = Mat.ToXMMATRIX();
+        XMMATRIX xmT = XMMatrixTranspose(xm);
         return FromXMMATRIX(xmT);
     }
 
     static float Determinant(const FMatrix& Mat)
     {
-        DirectX::XMMATRIX xm = Mat.ToXMMATRIX();
-        DirectX::XMVECTOR det = DirectX::XMMatrixDeterminant(xm);
-        return DirectX::XMVectorGetX(det);
+        XMMATRIX xm = Mat.ToXMMATRIX();
+        XMVECTOR det = XMMatrixDeterminant(xm);
+        return XMVectorGetX(det);
     }
 
     static FMatrix Inverse(const FMatrix& Mat)
     {
-        DirectX::XMMATRIX xm = Mat.ToXMMATRIX();
-        DirectX::XMVECTOR det;
-        DirectX::XMMATRIX xmInv = DirectX::XMMatrixInverse(&det, xm);
+        XMMATRIX xm = Mat.ToXMMATRIX();
+        XMVECTOR det;
+        XMMATRIX xmInv = XMMatrixInverse(&det, xm);
         return FromXMMATRIX(xmInv);
     }
 
     static FMatrix CreateRotation(float roll, float pitch, float yaw)
     {
-        float radRoll  = FMath::DegreesToRadians(roll);
-        float radPitch = FMath::DegreesToRadians(pitch);
-        float radYaw   = FMath::DegreesToRadians(yaw);
-        DirectX::XMVECTOR q = DirectX::XMQuaternionRotationRollPitchYaw(radRoll, radPitch, radYaw);
-        DirectX::XMMATRIX xm = DirectX::XMMatrixRotationQuaternion(q);
-        return FromXMMATRIX(xm);
+        float radRoll = roll * (3.14159265359f / 180.0f);
+        float radPitch = pitch * (3.14159265359f / 180.0f);
+        float radYaw = yaw * (3.14159265359f / 180.0f);
+
+        float cosRoll = cos(radRoll), sinRoll = sin(radRoll);
+        float cosPitch = cos(radPitch), sinPitch = sin(radPitch);
+        float cosYaw = cos(radYaw), sinYaw = sin(radYaw);
+
+        // Z축 (Yaw) 회전
+        FMatrix rotationZ = { {
+            { cosYaw, sinYaw, 0, 0 },
+            { -sinYaw, cosYaw, 0, 0 },
+            { 0, 0, 1, 0 },
+            { 0, 0, 0, 1 }
+        } };
+
+        // Y축 (Pitch) 회전
+        FMatrix rotationY = { {
+            { cosPitch, 0, -sinPitch, 0 },
+            { 0, 1, 0, 0 },
+            { sinPitch, 0, cosPitch, 0 },
+            { 0, 0, 0, 1 }
+        } };
+
+        // X축 (Roll) 회전
+        FMatrix rotationX = { {
+            { 1, 0, 0, 0 },
+            { 0, cosRoll, sinRoll, 0 },
+            { 0, -sinRoll, cosRoll, 0 },
+            { 0, 0, 0, 1 }
+        } };
+
+        // DirectX 표준 순서: Z(Yaw) → Y(Pitch) → X(Roll)  
+        return rotationX * rotationY * rotationZ;  // 이렇게 하면  오른쪽 부터 적용됨
     }
 
     static FMatrix CreateScale(float scaleX, float scaleY, float scaleZ)
     {
-        DirectX::XMMATRIX xm = DirectX::XMMatrixScaling(scaleX, scaleY, scaleZ);
+        XMMATRIX xm = XMMatrixScaling(scaleX, scaleY, scaleZ);
+        return FromXMMATRIX(xm);
+    }
+
+    static FMatrix CreateTranslationMatrix(const FVector& position)
+    {
+        XMMATRIX xm = XMMatrixTranslation(position.x, position.y, position.z);
         return FromXMMATRIX(xm);
     }
 
     FVector TransformPosition(const FVector& vector) const
     {
-        DirectX::XMVECTOR vec = DirectX::XMVectorSet(vector.x, vector.y, vector.z, 1.0f);
-        DirectX::XMMATRIX xm = this->ToXMMATRIX();
-        DirectX::XMVECTOR transformed = DirectX::XMVector4Transform(vec, xm);
-        DirectX::XMFLOAT4 out;
-        DirectX::XMStoreFloat4(&out, transformed);
-        if (out.w != 0.0f)
-        {
-            return FVector(out.x / out.w, out.y / out.w, out.z / out.w);
-        }
-        else
-        {
-            return FVector(out.x, out.y, out.z);
-        }
+        XMVECTOR vec = XMVectorSet(vector.x, vector.y, vector.z, 1.0f);
+        XMMATRIX xm = this->ToXMMATRIX();
+        XMVECTOR transformed = XMVector4Transform(vec, xm);
+        XMFLOAT4 out;
+        XMStoreFloat4(&out, transformed);
+        return out.w != 0.0f ? FVector(out.x / out.w, out.y / out.w, out.z / out.w)
+                             : FVector(out.x, out.y, out.z);
     }
 
     static FVector TransformVector(const FVector& v, const FMatrix& m)
     {
-        DirectX::XMMATRIX xm = m.ToXMMATRIX();
-        DirectX::XMVECTOR vec = DirectX::XMVectorSet(v.x, v.y, v.z, 0.0f);
-        DirectX::XMVECTOR transformed = DirectX::XMVector3Transform(vec, xm);
-        DirectX::XMFLOAT3 out;
-        DirectX::XMStoreFloat3(&out, transformed);
+        XMMATRIX xm = m.ToXMMATRIX();
+        XMVECTOR vec = XMVectorSet(v.x, v.y, v.z, 0.0f);
+        XMVECTOR transformed = XMVector3Transform(vec, xm);
+        XMFLOAT3 out;
+        XMStoreFloat3(&out, transformed);
         return FVector(out.x, out.y, out.z);
     }
 
     static FVector4 TransformVector(const FVector4& v, const FMatrix& m)
     {
-        DirectX::XMMATRIX xm = m.ToXMMATRIX();
-        DirectX::XMVECTOR vec = DirectX::XMVectorSet(v.x, v.y, v.z, v.a);
-        DirectX::XMVECTOR transformed = DirectX::XMVector4Transform(vec, xm);
-        DirectX::XMFLOAT4 out;
-        DirectX::XMStoreFloat4(&out, transformed);
+        XMMATRIX xm = m.ToXMMATRIX();
+        XMVECTOR vec = XMVectorSet(v.x, v.y, v.z, v.a);
+        XMVECTOR transformed = XMVector4Transform(vec, xm);
+        XMFLOAT4 out;
+        XMStoreFloat4(&out, transformed);
         return FVector4(out.x, out.y, out.z, out.w);
-    }
-
-    static FMatrix CreateTranslationMatrix(const FVector& position)
-    {
-        DirectX::XMMATRIX xm = DirectX::XMMatrixTranslation(position.x, position.y, position.z);
-        return FromXMMATRIX(xm);
     }
 
     DirectX::XMMATRIX ToXMMATRIX() const
     {
-        // row-major 방식: FMatrix의 M[i][j]가 행 i, 열 j에 해당
-        return DirectX::XMMatrixSet(
+        // row-major 순서로 행렬을 구성
+        return XMMatrixSet(
             M[0][0], M[0][1], M[0][2], M[0][3],
             M[1][0], M[1][1], M[1][2], M[1][3],
             M[2][0], M[2][1], M[2][2], M[2][3],
@@ -178,8 +195,8 @@ struct FMatrix
     static FMatrix FromXMMATRIX(const DirectX::XMMATRIX& xm)
     {
         FMatrix result;
-        DirectX::XMFLOAT4X4 tmp;
-        DirectX::XMStoreFloat4x4(&tmp, xm);
+        XMFLOAT4X4 tmp;
+        XMStoreFloat4x4(&tmp, xm);
         for (int i = 0; i < 4; i++)
         {
             for (int j = 0; j < 4; j++)
