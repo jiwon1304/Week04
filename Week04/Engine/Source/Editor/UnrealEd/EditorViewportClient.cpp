@@ -287,7 +287,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
 {
     if (IsPerspective()) {
         Projection = JungleMath::CreateProjectionMatrix(
-            ViewFOV * (3.141592f / 180.0f),
+            XMConvertToRadians(ViewFOV + 20),
             GetViewport()->GetViewport().Width/ GetViewport()->GetViewport().Height,
             nearPlane,
             farPlane
@@ -315,8 +315,6 @@ void FEditorViewportClient::UpdateProjectionMatrix()
 
 void FEditorViewportClient::UpdateFrustum()
 {
-    FMatrix viewProj = View * Projection;
-    //CameraFrustum.CreatePlaneWithMatrix(viewProj);
     CameraFrustum.CreatePlane(ViewTransformPerspective, ViewFOV, nearPlane, farPlane, AspectRatio);
 }
 
@@ -618,7 +616,7 @@ bool Frustum::Intersects(FBoundingBox box)
         const Plane& Plane = planes[i];
         FVector PositiveVector = box.GetPositiveVertex(Plane.normal);
         float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
-        if (Dist < 0)
+        if (Dist < 0.45f)
         {
             return false;
         }
