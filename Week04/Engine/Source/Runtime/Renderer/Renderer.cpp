@@ -1082,7 +1082,7 @@ bool FRenderer::IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const
 {
     Frustum Frustum = ActiveViewport->GetFrustum();
     FVector Location = StaticMeshComp->GetWorldLocation();
-    FBoundingBox AABB = StaticMeshComp->AABB;
+    FBoundingBox AABB = StaticMeshComp->LocalAABB;
     AABB.min = AABB.min + Location;
     AABB.max = AABB.max + Location;
     /*TArray<FVector> vertices = aabb.GetVertices();

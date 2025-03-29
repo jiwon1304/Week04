@@ -36,7 +36,7 @@ void FOctreeNode::SubDivide()
 
 bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
 {
-    if (!BoundBox.IntersectsAABB(Component->GetBoundingBox()))
+    if (!BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
     {
         return false;
     }
@@ -92,7 +92,7 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
     {
         for (UPrimitiveComponent* Comp : Components)
         {
-            if (Frustum.Intersects(Comp->GetBoundingBox()))
+            if (Frustum.Intersects(Comp->GetWorldBoundingBox()))
             {
                 OutComponents.Add(Comp);
             }

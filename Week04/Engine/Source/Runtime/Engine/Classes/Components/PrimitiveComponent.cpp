@@ -3,7 +3,7 @@
 
 UPrimitiveComponent::UPrimitiveComponent()
 {
-    bIsBoundingBoxInitialized = false;
+    bIsWorldBoundBoxInitialized = false;
 }
 
 UPrimitiveComponent::~UPrimitiveComponent()
@@ -101,53 +101,59 @@ bool UPrimitiveComponent::IntersectRayTriangle(const FVector& rayOrigin, const F
 
 FBoundingBox UPrimitiveComponent::GetBoundingBox()
 {
-    if (bIsBoundingBoxInitialized)
+    return LocalAABB;
+}
+
+FBoundingBox UPrimitiveComponent::GetWorldBoundingBox()
+{
+    if (bIsWorldBoundBoxInitialized)
     {
-        return AABB;
+        return WorldAABB;
     }
-    
+
+    WorldAABB = LocalAABB;
     FVector WorldLocation = GetWorldLocation();
     FVector WorldScale = GetWorldScale();
     FVector WorldRotation = GetWorldRotation();
     
     if (WorldScale != FVector::OneVector)
     {
-        FVector BoxCenter = AABB.GetCenter();
-        FVector BoxExtent = AABB.GetExtent();
+        FVector BoxCenter = WorldAABB.GetCenter();
+        FVector BoxExtent = WorldAABB.GetExtent();
         
         BoxExtent.x *= WorldScale.x;
         BoxExtent.y *= WorldScale.y;
         BoxExtent.z *= WorldScale.z;
         
-        AABB.min = BoxCenter - BoxExtent;
-        AABB.max = BoxCenter + BoxExtent;
+        WorldAABB.min = BoxCenter - BoxExtent;
+        WorldAABB.max = BoxCenter + BoxExtent;
     }
     
     if (WorldRotation != FVector::ZeroVector)
     {
         FMatrix RotationMatrix = FMatrix::CreateRotation(WorldRotation.x, WorldRotation.y, WorldRotation.z);
-        TArray<FVector> Vertices = AABB.GetVertices();
+        TArray<FVector> VertexLocations = WorldAABB.GetVertices();
         FVector min(FLT_MAX, FLT_MAX, FLT_MAX);
         FVector max = min * -1.0f;
         
-        for (FVector& Vertex : Vertices)
+        for (FVector& VertexLocation : VertexLocations)
         {
-            Vertex = RotationMatrix.TransformPosition(Vertex);
+            VertexLocation = FMatrix::TransformVector(VertexLocation, RotationMatrix);
             
-            min.x = FMath::Min(min.x, Vertex.x);
-            min.y = FMath::Min(min.y, Vertex.y);
-            min.z = FMath::Min(min.z, Vertex.z);
-            max.x = FMath::Max(max.x, Vertex.x);
-            max.y = FMath::Max(max.y, Vertex.y);
-            max.z = FMath::Max(max.z, Vertex.z);
+            min.x = FMath::Min(min.x, VertexLocation.x);
+            min.y = FMath::Min(min.y, VertexLocation.y);
+            min.z = FMath::Min(min.z, VertexLocation.z);
+            max.x = FMath::Max(max.x, VertexLocation.x);
+            max.y = FMath::Max(max.y, VertexLocation.y);
+            max.z = FMath::Max(max.z, VertexLocation.z);
         }
-        AABB.min = min;
-        AABB.max = max;
+        WorldAABB.min = min;
+        WorldAABB.max = max;
     }
     
-    AABB.min = AABB.min + WorldLocation;
-    AABB.max = AABB.max + WorldLocation;
+    WorldAABB.min = WorldAABB.min + WorldLocation;
+    WorldAABB.max = WorldAABB.max + WorldLocation;
 
-    bIsBoundingBoxInitialized = true;
-    return AABB;
+    bIsWorldBoundBoxInitialized = true;
+    return WorldAABB;
 }
