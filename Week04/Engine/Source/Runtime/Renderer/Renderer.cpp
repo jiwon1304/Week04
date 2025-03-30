@@ -24,6 +24,7 @@
 #include "BaseGizmos/TransformGizmo.h"
 #include "UObject/UObjectIterator.h"
 #include "BaseGizmos/GizmoBaseComponent.h"
+#include <thread>
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -126,6 +127,16 @@ void FRenderer::PrepareShader() const
     Graphics->DeviceContext->VSSetShader(VertexShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(PixelShader, nullptr, 0);
     Graphics->DeviceContext->IASetInputLayout(InputLayout);
+}
+
+void FRenderer::PrepareShaderDeferred() const
+{
+    for (ID3D11DeviceContext* Deferred : Graphics->DeferredContexts)
+    {
+        Deferred->VSSetShader(VertexShader, nullptr, 0);
+        Deferred->PSSetShader(PixelShader, nullptr, 0);
+        Deferred->IASetInputLayout(InputLayout);
+    }
 }
 
 void FRenderer::ResetVertexShader() const
@@ -487,6 +498,23 @@ void FRenderer::UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, b
     }
 }
 
+void FRenderer::UpdateConstantDeferred(ID3D11DeviceContext* Context, const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const
+{
+    if (ConstantBuffer)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR; // GPU�� �޸� �ּ� ����
+
+        Context->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
+            constants->WorldMatrix = WorldMatrix;
+            constants->UUIDColor = UUIDColor;
+            constants->IsSelected = IsSelected;
+        }
+        Context->Unmap(ConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
+    }
+}
+
 void FRenderer::UpdateViewMatrix(const FMatrix& InViewMatrix) const
 {
     if (ConstantBufferView)
@@ -544,6 +572,39 @@ void FRenderer::UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const
 
         Graphics->DeviceContext->PSSetShaderResources(0, 1, nullSRV);
         Graphics->DeviceContext->PSSetSamplers(0, 1, nullSampler);
+    }
+}
+
+void FRenderer::UpdateMaterialDeferred(const FObjMaterialInfo& MaterialInfo) const
+{
+    for (ID3D11DeviceContext* Contexts : Graphics->DeferredContexts)
+    {
+        if (MaterialConstantBuffer)
+        {
+            D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+
+            Contexts->Map(MaterialConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+            {
+                FMaterialConstants* constants = static_cast<FMaterialConstants*>(ConstantBufferMSR.pData);
+                constants->DiffuseColor = MaterialInfo.Diffuse;
+            }
+            Contexts->Unmap(MaterialConstantBuffer, 0);
+        }
+
+        if (MaterialInfo.bHasTexture == true)
+        {
+            std::shared_ptr<FTexture> texture = FEngineLoop::ResourceManager.GetTexture(MaterialInfo.DiffuseTexturePath);
+            Contexts->PSSetShaderResources(0, 1, &texture->TextureSRV);
+            Contexts->PSSetSamplers(0, 1, &texture->SamplerState);
+        }
+        else
+        {
+            ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+            ID3D11SamplerState* nullSampler[1] = { nullptr };
+
+            Contexts->PSSetShaderResources(0, 1, nullSRV);
+            Contexts->PSSetSamplers(0, 1, nullSampler);
+        }
     }
 }
 
@@ -1203,15 +1264,69 @@ void FRenderer::RenderStaticMeshes()
             {
                 Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
             }
-            for (const FMeshData& Data : DataArray)
-            {
-                FMatrix MVP = Data.WorldMatrix;
-                FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
-                UpdateConstant(MVP, UUIDColor, Data.bIsSelected);
+            // Create a vector to store threads
+            std::vector<std::thread> threads;
 
-                // Draw
-                Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+            // Split the DataArray into chunks and process each chunk in a separate thread
+            size_t chunk_size = DataArray.size() / NUM_DEFERRED_CONTEXT;  // Divide by number of hardware threads
+            chunk_size = std::max(chunk_size, size_t(1));  // Ensure at least one element per chunk
+
+            ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
+
+            for (size_t i = 0; i < DataArray.size(); i += chunk_size)
+            {
+                // Calculate the end index of the chunk
+                size_t end = std::min(i + chunk_size, DataArray.size());
+
+                // Create a lambda that processes each chunk of FMeshData
+                size_t tid = i / chunk_size;
+                ID3D11CommandList* Cmd = nullptr;
+                threads.push_back(std::thread([this, &DataArray, i, end, tid, CommandList[tid]() {
+                    // Process each FMeshData in the chunk
+                    for (size_t j = i; j < end; ++j)
+                    {
+                        const FMeshData& Data = DataArray[j];
+                        FMatrix MVP = Data.WorldMatrix;
+                        FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
+                        UpdateConstantDeferred(Graphics->DeferredContexts[tid], MVP, UUIDColor, Data.bIsSelected);
+
+                        // Draw
+                        Graphics->DeferredContexts[tid]->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+
+                        // command list에 모두 push
+                        HRESULT hr = Graphics->DeferredContexts[tid]->FinishCommandList(FALSE, &CommandList[tid]);
+                        if (FAILED(hr)) {
+                            hr = Graphics->Device->GetDeviceRemovedReason();
+                            std::cerr << "Failed to create Command List!" << std::endl;
+                        }
+
+                    }
+                }));
             }
+
+            // Wait for all threads to finish for the current StaticMesh
+            for (auto& t : threads)
+            {
+                t.join();
+            }
+            for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+            {
+                // command list에 모두 push
+                HRESULT hr = Graphics->DeferredContexts[i]->FinishCommandList(FALSE, CommandList[i]);
+                if (FAILED(hr)) {
+                    hr = Graphics->Device->GetDeviceRemovedReason();
+                    std::cerr << "Failed to create Command List!" << std::endl;
+                }
+            }
+
+            // Command list execute
+            for (auto& QC : QueryContexts)
+            {
+                Graphics->DeviceContext->ExecuteCommandList(QC.CommandList, true);
+                QC.CommandList->Release();
+                QC.CommandList = nullptr;
+            }
+
         }
     }
 }

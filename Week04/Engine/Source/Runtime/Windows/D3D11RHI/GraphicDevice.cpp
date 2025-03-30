@@ -4,6 +4,7 @@
 void FGraphicsDevice::Initialize(HWND hWindow)
 {
     CreateDeviceAndSwapChain(hWindow);
+    CreateDeferredContext();
     CreateFrameBuffer();
     CreateDepthStencilBuffer(hWindow);
     CreateDepthStencilState();
@@ -52,6 +53,22 @@ void FGraphicsDevice::CreateDeviceAndSwapChain(HWND hWindow)
     SwapChain->GetDesc(&SwapchainDesc);
     screenWidth = SwapchainDesc.BufferDesc.Width;
     screenHeight = SwapchainDesc.BufferDesc.Height;
+}
+
+void FGraphicsDevice::CreateDeferredContext()
+{
+    HRESULT hr = S_OK;
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; ++i)
+    {
+        ID3D11DeviceContext* Deferred;
+        hr = Device->CreateDeferredContext(0, &Deferred);
+        if (FAILED(hr))
+        {
+            std::cerr << "Failed to create Deferred Device Context"<< std::endl;
+            continue;
+        }
+        DeferredContexts.Add(Deferred);
+    }
 }
 
 void FGraphicsDevice::CreateDepthStencilBuffer(HWND hWindow) {
