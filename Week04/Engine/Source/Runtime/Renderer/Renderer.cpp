@@ -21,6 +21,9 @@
 #include "UObject/UObjectIterator.h"
 #include "Components/SkySphereComponent.h"
 #include "OctreeNode.h"
+#include "BaseGizmos/TransformGizmo.h"
+#include "UObject/UObjectIterator.h"
+#include "BaseGizmos/GizmoBaseComponent.h"
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -1045,6 +1048,7 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
     // End Setup
 
+    // 렌더할 컴포넌트를 담기 전에 배열 비움
     ClearRenderArr();
     
     Frustum Frustum = ActiveViewport->GetFrustum();
@@ -1054,17 +1058,15 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     Octree->FrustumCull(Frustum, Components);
 
     AActor* SelectedActor = World->GetSelectedActor();
+    UTransformGizmo* GizmoActor = World->LocalGizmo;
     
     for (const auto& Comp : Components)
     {
-        if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(Comp))
+        if (GizmoActor->GetComponents().Contains(Comp))
         {
-            if (SelectedActor)
-            {
-                GizmoObjs.Add(pGizmoComp);
-            }
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
         }
-        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
         {
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
@@ -1089,6 +1091,20 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
                 MaterialMeshMap[Material][StaticMesh].push_back(Data);
                 SubMeshIdx++;
             }
+        }
+    }
+
+    if (SelectedActor)
+    {
+        ControlMode CM = World->GetEditorPlayer()->GetControlMode();
+        const TArray<UStaticMeshComponent*>& CompArr =
+            (CM == ControlMode::CM_TRANSLATION) ? GizmoActor->GetArrowArr() :
+            (CM == ControlMode::CM_ROTATION)    ? GizmoActor->GetDiscArr()  :
+                                                  GizmoActor->GetScaleArr();
+
+        for (const auto& Comp : CompArr)
+        {
+            GizmoObjs.Add(Cast<UGizmoBaseComponent>(Comp));
         }
     }
 }
@@ -1220,24 +1236,12 @@ void FRenderer::RenderGizmos()
         if (!GizmoComp->GetStaticMesh()) continue;
         OBJ::FStaticMeshRenderData* renderData = GizmoComp->GetStaticMesh()->GetRenderData();
         if (renderData == nullptr) continue;
-        
-        if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_TRANSLATION)
-            continue;
-        else if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_SCALE)
-            continue;
-        else if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_ROTATION)
-            continue;
-        
-        FMatrix Model = GizmoComp->GetWorldMatrix();
+
+        // 기즈모는 예외로 매트릭스 계산해서 가져옴.
+        FMatrix Model = JungleMath::CreateModelMatrix(GizmoComp->GetWorldLocation(),
+            GizmoComp->GetWorldRotation(),
+            GizmoComp->GetWorldScale()
+        );
         FVector4 UUIDColor = GizmoComp->EncodeUUID() / 255.0f;
         FMatrix WorldMatrix = Model;
         UpdateConstant(WorldMatrix, UUIDColor, GizmoComp == World->GetPickingGizmo());
