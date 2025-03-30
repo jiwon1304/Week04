@@ -1057,18 +1057,14 @@ void FRenderer::PrepareRender()
             int SubMeshIdx = 0;
             
             FMeshData Data;
-            Data.SubMeshIndex = SubMeshIdx;
-            Data.WorldMatrix = JungleMath::CreateModelMatrix(
-                pStaticMeshComp->GetWorldLocation(),
-                pStaticMeshComp->GetWorldRotation(),
-                pStaticMeshComp->GetWorldScale()
-            );
+            Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
             Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
             Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
             
             for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
             {
                 UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.SubMeshIndex = SubMeshIdx;
                 Data.IndexStart = subMesh.IndexStart;
                 Data.IndexCount = subMesh.IndexCount;
                 MaterialMeshMap[Material][StaticMesh].push_back(Data);
@@ -1224,11 +1220,7 @@ void FRenderer::RenderGizmos()
             && World->GetEditorPlayer()->GetControlMode() != CM_ROTATION)
             continue;
         
-        FMatrix Model = JungleMath::CreateModelMatrix(GizmoComp->GetWorldLocation(),
-            GizmoComp->GetWorldRotation(),
-            GizmoComp->GetWorldScale()
-        );
-        
+        FMatrix Model = GizmoComp->GetWorldMatrix();
         FVector4 UUIDColor = GizmoComp->EncodeUUID() / 255.0f;
         FMatrix WorldMatrix = Model;
         UpdateConstant(WorldMatrix, UUIDColor, GizmoComp == World->GetPickingGizmo());
