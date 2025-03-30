@@ -1028,9 +1028,9 @@ void FRenderer::RenderBatch(
     Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-void FRenderer::PrepareRender(bool bCameraMoved)
+void FRenderer::PrepareRender(bool bShouldUpdateRender)
 {
-    if (!bCameraMoved)
+    if (!bShouldUpdateRender)
     {
         return;
     }
@@ -1385,9 +1385,6 @@ void FRenderer::CreateQuad()
     SamplerDesc.MinLOD = 0;
     SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
     Graphics->Device->CreateSamplerState(&SamplerDesc, &QuadSampler);
-
-    // Setup
-    Graphics->DeviceContext->PSSetShaderResources(127, 1, &QuadTextureSRV);
 }
 
 void FRenderer::ReleaseQuad()
@@ -1412,6 +1409,7 @@ void FRenderer::ReleaseQuad()
 void FRenderer::PrepareQuad()
 {
     Graphics->DeviceContext->OMSetRenderTargets(1, &Graphics->BackBufferRTV, nullptr);
+    Graphics->DeviceContext->RSSetViewports(1, &Graphics->Viewport);
     
     Graphics->DeviceContext->VSSetShader(QuadVertexShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(QuadPixelShader, nullptr, 0);
@@ -1422,13 +1420,92 @@ void FRenderer::PrepareQuad()
     Graphics->DeviceContext->IASetIndexBuffer(QuadIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
     Graphics->DeviceContext->IASetInputLayout(QuadInputLayout);
 
-    // Graphics->DeviceContext->PSSetSamplers(0, 1, &QuadSampler);
     Graphics->DeviceContext->PSSetShaderResources(127, 1, &QuadTextureSRV);
 }
 
 void FRenderer::RenderQuad()
 {
     Graphics->DeviceContext->DrawIndexed(6, 0, 0);
+}
+
+void FRenderer::PrepareResize()
+{
+    Graphics->DeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
+
+    if (QuadRTV)
+    {
+        QuadRTV->Release();
+        QuadRTV = nullptr;
+    }
+    if (QuadTexture)
+    {
+        QuadTexture->Release();
+        QuadTexture = nullptr;
+    }
+    if (QuadTextureSRV)
+    {
+        QuadTextureSRV->Release();
+        QuadTextureSRV = nullptr;
+    }
+}
+
+void FRenderer::OnResize(const DXGI_SWAP_CHAIN_DESC& SwapchainDesc)
+{
+    uint32 Width = Graphics->screenWidth;
+    uint32 Height = Graphics->screenHeight;
+    if (Width == 0 || Height == 0)
+    {
+        return;
+    }
+
+    // Create New
+    HRESULT hr = S_OK;
+    // Render target
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
+    TextureDesc.Width = Width;
+    TextureDesc.Height = Height;
+    TextureDesc.MipLevels = 1;
+    TextureDesc.ArraySize = 1;
+    TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    TextureDesc.SampleDesc.Count = 1;
+    TextureDesc.SampleDesc.Quality = 0;
+    TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    TextureDesc.CPUAccessFlags = 0;
+    TextureDesc.MiscFlags = 0;
+    hr = Graphics->Device->CreateTexture2D(&TextureDesc, nullptr, &QuadTexture);
+    if (FAILED(hr))
+    {
+        return;
+    }
+    // SRV
+    hr = Graphics->Device->CreateShaderResourceView(QuadTexture, nullptr, &QuadTextureSRV);
+    if (FAILED(hr))
+    {
+        return;
+    }
+    // RTV
+    D3D11_RENDER_TARGET_VIEW_DESC RenderTargetViewDesc;
+    ZeroMemory(&RenderTargetViewDesc, sizeof(RenderTargetViewDesc));
+    RenderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    RenderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    hr = Graphics->Device->CreateRenderTargetView(QuadTexture, &RenderTargetViewDesc, &QuadRTV);
+    if (FAILED(hr))
+    {
+        return;
+    }
+
+    
+
+    D3D11_VIEWPORT Viewport = {
+        .TopLeftX = 0.f,
+        .TopLeftY = 0.f,
+        .Width = static_cast<float>(Width),
+        .Height = static_cast<float>(Height),
+        .MinDepth = 0.0f,
+        .MaxDepth = 1.0f
+    };
+    Graphics->DeviceContext->RSSetViewports(1, &Viewport);
 }
 
 void FRenderer::RenderLight()

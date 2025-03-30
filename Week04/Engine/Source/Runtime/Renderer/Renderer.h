@@ -152,7 +152,7 @@ public: // line shader
     //Render Pass Demo
     void SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport);
     void SetWorld(UWorld* InWorld);
-    void PrepareRender(bool bCameraMoved);
+    void PrepareRender(bool bShouldUpdateRender);
     bool IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const;
     void ClearRenderArr();
     void Render();
@@ -229,6 +229,9 @@ private:
 public:
     void PrepareQuad();
     void RenderQuad();
+
+    void PrepareResize();
+    void OnResize(const DXGI_SWAP_CHAIN_DESC& SwapchainDesc);
 #pragma endregion quad
 };
 

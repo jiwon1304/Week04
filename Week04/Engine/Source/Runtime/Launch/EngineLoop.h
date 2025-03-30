@@ -19,7 +19,7 @@ public:
 
     int32 PreInit();
     int32 Init(HINSTANCE hInstance);
-    void Render(bool bCameraMoved);
+    void Render(bool bShouldUpdateRender);
     void QuadRender();
     void Tick();
     void Exit();

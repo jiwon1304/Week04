@@ -25,6 +25,7 @@ public:
     ID3D11RasterizerState* RasterizerStateWIREFRAME = nullptr;
     DXGI_SWAP_CHAIN_DESC SwapchainDesc;
 
+    D3D11_VIEWPORT Viewport;
     
     UINT screenWidth = 0;
     UINT screenHeight = 0;

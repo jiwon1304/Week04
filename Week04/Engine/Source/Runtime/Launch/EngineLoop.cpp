@@ -34,8 +34,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
             //UGraphicsDevice 객체의 OnResize 함수 호출
             if (FEngineLoop::GraphicDevice.SwapChain)
             {
+                FEngineLoop::Renderer.PrepareResize();
                 FEngineLoop::GraphicDevice.OnResize(hWnd);
+                FEngineLoop::Renderer.OnResize(FEngineLoop::GraphicDevice.SwapchainDesc);
             }
+            
             if (GEngineLoop.GetLevelEditor())
             {
                 if (FEditorViewportClient* ViewportClient = GEngineLoop.GetLevelEditor()->GetViewports()[0].get())
@@ -134,45 +137,26 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
     LevelEditor->OffMultiViewport();
     
+    Renderer.PrepareRender(true); // Force update
+    
     return 0;
 }
 
 
-void FEngineLoop::Render(bool bCameraMoved)
+void FEngineLoop::Render(bool bShouldUpdateRender)
 {
-    // GraphicDevice.Prepare();
-    Renderer.PrepareRender(bCameraMoved);
+    Renderer.PrepareRender(bShouldUpdateRender);
     Renderer.Render();
-    
-    /*if (LevelEditor->IsMultiViewport())
-    {
-        std::shared_ptr<FEditorViewportClient> viewportClient = GetLevelEditor()->GetActiveViewportClient();
-        for (int i = 0; i < 1; ++i)
-        {
-            LevelEditor->SetViewportClient(i);
-            Renderer.PrepareRender();
-            Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
-        }
-        GetLevelEditor()->SetViewportClient(viewportClient);
-    }
-    else
-    {
-        Renderer.PrepareRender();
-        Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
-    }*/
 }
 
 void FEngineLoop::QuadRender()
 {
-    // GraphicDevice.Prepare();
     Renderer.PrepareQuad();
     Renderer.RenderQuad();
 }
 
 void FEngineLoop::Tick()
 {
-    Renderer.PrepareRender(true); // Force update
-    
     double TargetDeltaTime = -1.f;
     
     bool bShouldLimitFPS = TargetFPS > 0;
@@ -213,11 +197,9 @@ void FEngineLoop::Tick()
         bool bShouldUpdateRender = false;
         bShouldUpdateRender |= GWorld->Tick(ElapsedTime);
         bShouldUpdateRender |= LevelEditor->Tick(ElapsedTime);
-        // if (bShouldUpdateRender || true)
         if (bShouldUpdateRender)
         {
             Render(bShouldUpdateRender);
-            // Render(true);
         }
 
         // Final Render
