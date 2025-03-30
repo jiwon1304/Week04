@@ -3,6 +3,7 @@
 #define COMMON_BUFFERS_INCLUDED
 
 Texture2D Textures : register(t0);
+Texture2D PrevRenderTexture : register(t127);
 
 SamplerState Sampler : register(s0);
 

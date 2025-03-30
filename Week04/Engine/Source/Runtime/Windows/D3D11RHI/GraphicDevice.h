@@ -16,10 +16,10 @@ public:
     ID3D11Device* Device = nullptr;
     ID3D11DeviceContext* DeviceContext = nullptr;
     IDXGISwapChain* SwapChain = nullptr;
-    ID3D11Texture2D* FrameBuffer = nullptr;
+    ID3D11Texture2D* BackBuffer = nullptr;
     ID3D11Texture2D* UUIDFrameBuffer = nullptr;
     ID3D11RenderTargetView* RTVs[2];
-    ID3D11RenderTargetView* FrameBufferRTV = nullptr;
+    ID3D11RenderTargetView* BackBufferRTV = nullptr;
     ID3D11RenderTargetView* UUIDFrameBufferRTV = nullptr;
     ID3D11RasterizerState* RasterizerStateSOLID = nullptr;
     ID3D11RasterizerState* RasterizerStateWIREFRAME = nullptr;

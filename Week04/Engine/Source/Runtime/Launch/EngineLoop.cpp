@@ -140,7 +140,7 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
 void FEngineLoop::Render(bool bCameraMoved)
 {
-    GraphicDevice.Prepare();
+    // GraphicDevice.Prepare();
     Renderer.PrepareRender(bCameraMoved);
     Renderer.Render();
     
@@ -160,6 +160,13 @@ void FEngineLoop::Render(bool bCameraMoved)
         Renderer.PrepareRender();
         Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
     }*/
+}
+
+void FEngineLoop::QuadRender()
+{
+    // GraphicDevice.Prepare();
+    Renderer.PrepareQuad();
+    Renderer.RenderQuad();
 }
 
 void FEngineLoop::Tick()
@@ -206,14 +213,15 @@ void FEngineLoop::Tick()
         bool bShouldUpdateRender = false;
         bShouldUpdateRender |= GWorld->Tick(ElapsedTime);
         bShouldUpdateRender |= LevelEditor->Tick(ElapsedTime);
+        // if (bShouldUpdateRender || true)
         if (bShouldUpdateRender)
         {
             Render(bShouldUpdateRender);
+            // Render(true);
         }
-        else
-        {
-            // TODO: Fake render
-        }
+
+        // Final Render
+        QuadRender();
 
         UIMgr->BeginFrame();
 

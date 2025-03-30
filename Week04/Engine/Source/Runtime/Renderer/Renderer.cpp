@@ -32,6 +32,8 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
 
+    CreateQuad();
+
     BindBuffers();
 }
 
@@ -66,6 +68,8 @@ void FRenderer::Release()
     ReleaseTextureShader();
     ReleaseLineShader();
     ReleaseConstantBuffer();
+
+    ReleaseQuad();
 }
 
 void FRenderer::CreateShader()
@@ -102,13 +106,11 @@ void FRenderer::ReleaseShader()
         InputLayout->Release();
         InputLayout = nullptr;
     }
-
     if (PixelShader)
     {
         PixelShader->Release();
         PixelShader = nullptr;
     }
-
     if (VertexShader)
     {
         VertexShader->Release();
@@ -1033,6 +1035,16 @@ void FRenderer::PrepareRender(bool bCameraMoved)
         return;
     }
 
+    // Setup
+    Graphics->DeviceContext->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+    Graphics->DeviceContext->ClearRenderTargetView(QuadRTV, ClearColor);
+    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
+    // End Setup
+
     ClearRenderArr();
     
     Frustum Frustum = ActiveViewport->GetFrustum();
@@ -1288,6 +1300,135 @@ void FRenderer::RenderBillboards()
         }
     }
     PrepareShader();
+}
+
+void FRenderer::CreateQuad()
+{
+    // QuadShader
+    ID3DBlob* VertexShaderCSO = nullptr;
+    ID3DBlob* PixelShaderCSO = nullptr;
+    ID3DBlob* Error;
+    D3DCompileFromFile(L"Shaders/QuadShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, &Error);
+    Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &QuadVertexShader);
+
+    D3DCompileFromFile(L"Shaders/QuadShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, &Error);
+    Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &QuadPixelShader);
+
+    D3D11_INPUT_ELEMENT_DESC QuadLayout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    Graphics->Device->CreateInputLayout(
+        QuadLayout, ARRAYSIZE(QuadLayout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &QuadInputLayout
+    );
+
+    VertexShaderCSO->Release();
+    PixelShaderCSO->Release();
+    if (Error)
+    {
+        Error->Release();
+    }
+
+    // QuadVertexBuffer
+    D3D11_BUFFER_DESC BufferDesc = {};
+    BufferDesc.ByteWidth = sizeof(FQuadVertex) * 4;
+    BufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    BufferDesc.CPUAccessFlags = 0;
+    BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    
+    D3D11_SUBRESOURCE_DATA InitData = {};
+    InitData.pSysMem = QuadVertices;
+    
+    Graphics->Device->CreateBuffer(&BufferDesc, &InitData, &QuadVertexBuffer);
+
+    // QuadIndexBuffer
+    BufferDesc.ByteWidth = sizeof(uint32) * 6;
+    BufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    InitData.pSysMem = QuadIndides;
+    
+    Graphics->Device->CreateBuffer(&BufferDesc, &InitData, &QuadIndexBuffer);
+
+    // Render target
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
+    TextureDesc.Width = Graphics->screenWidth;
+    TextureDesc.Height = Graphics->screenHeight;
+    TextureDesc.MipLevels = 1;
+    TextureDesc.ArraySize = 1;
+    TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    TextureDesc.SampleDesc.Count = 1;
+    TextureDesc.SampleDesc.Quality = 0;
+    TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    TextureDesc.CPUAccessFlags = 0;
+    TextureDesc.MiscFlags = 0;
+    Graphics->Device->CreateTexture2D(&TextureDesc, nullptr, &QuadTexture);
+
+    // SRV
+    Graphics->Device->CreateShaderResourceView(QuadTexture, nullptr, &QuadTextureSRV);
+
+    // RTV
+    D3D11_RENDER_TARGET_VIEW_DESC RenderTargetViewDesc;
+    ZeroMemory(&RenderTargetViewDesc, sizeof(RenderTargetViewDesc));
+    RenderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    RenderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    Graphics->Device->CreateRenderTargetView(QuadTexture, &RenderTargetViewDesc, &QuadRTV);
+
+    // Sampler
+    D3D11_SAMPLER_DESC SamplerDesc = {};
+    SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    SamplerDesc.MipLODBias = -1; 
+    SamplerDesc.MinLOD = 0;
+    SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    Graphics->Device->CreateSamplerState(&SamplerDesc, &QuadSampler);
+
+    // Setup
+    Graphics->DeviceContext->PSSetShaderResources(127, 1, &QuadTextureSRV);
+}
+
+void FRenderer::ReleaseQuad()
+{
+    if (QuadInputLayout)
+    {
+        QuadInputLayout->Release();
+        QuadInputLayout = nullptr;
+    }
+    if (QuadPixelShader)
+    {
+        QuadPixelShader->Release();
+        QuadPixelShader = nullptr;
+    }
+    if (QuadVertexShader)
+    {
+        QuadVertexShader->Release();
+        QuadVertexShader = nullptr;
+    }
+}
+
+void FRenderer::PrepareQuad()
+{
+    Graphics->DeviceContext->OMSetRenderTargets(1, &Graphics->BackBufferRTV, nullptr);
+    
+    Graphics->DeviceContext->VSSetShader(QuadVertexShader, nullptr, 0);
+    Graphics->DeviceContext->PSSetShader(QuadPixelShader, nullptr, 0);
+
+    uint32 Stride = sizeof(FQuadVertex);
+    uint32 Offset = 0;
+    Graphics->DeviceContext->IASetVertexBuffers(0, 1, &QuadVertexBuffer, &Stride, &Offset);
+    Graphics->DeviceContext->IASetIndexBuffer(QuadIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    Graphics->DeviceContext->IASetInputLayout(QuadInputLayout);
+
+    // Graphics->DeviceContext->PSSetSamplers(0, 1, &QuadSampler);
+    Graphics->DeviceContext->PSSetShaderResources(127, 1, &QuadTextureSRV);
+}
+
+void FRenderer::RenderQuad()
+{
+    Graphics->DeviceContext->DrawIndexed(6, 0, 0);
 }
 
 void FRenderer::RenderLight()

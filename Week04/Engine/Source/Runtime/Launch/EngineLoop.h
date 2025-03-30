@@ -20,6 +20,7 @@ public:
     int32 PreInit();
     int32 Init(HINSTANCE hInstance);
     void Render(bool bCameraMoved);
+    void QuadRender();
     void Tick();
     void Exit();
     float GetAspectRatio(IDXGISwapChain* swapChain) const;
