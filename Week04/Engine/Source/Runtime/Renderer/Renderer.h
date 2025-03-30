@@ -164,6 +164,7 @@ public: // line shader
     void RenderLight();
     void RenderBillboards();
 
+
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
@@ -193,6 +194,14 @@ public:
     ID3D11ShaderResourceView* pBBSRV = nullptr;
     ID3D11ShaderResourceView* pConeSRV = nullptr;
     ID3D11ShaderResourceView* pOBBSRV = nullptr;
+
+// thread
+private:
+    void RenderStaticMeshesThread(
+        std::vector<FMeshData> DataArray, 
+        size_t i, size_t end, size_t tid, 
+        UMaterial* Material, const UStaticMesh* StaticMesh,
+         ID3D11CommandList* &CommandList);
 
 #pragma region quad
 private:

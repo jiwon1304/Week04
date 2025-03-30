@@ -1257,9 +1257,11 @@ void FRenderer::RenderStaticMeshes()
 
             // Split the DataArray into chunks and process each chunk in a separate thread
             size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
-            chunk_size = std::max(chunk_size, size_t(1));  // Ensure at least one element per chunk
-
-
+            
+            if (chunk_size < 512)
+            {
+                chunk_size = DataArray.size();
+            }
             for (size_t i = 0; i < DataArray.size(); i += chunk_size)
             {
                 // Calculate the end index of the chunk
@@ -1267,57 +1269,16 @@ void FRenderer::RenderStaticMeshes()
 
                 // Create a lambda that processes each chunk of FMeshData
                 size_t tid = i / chunk_size;
-                threads.push_back(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh ,&CommandList]() {
-                    ID3D11DeviceContext* Context = Graphics->DeferredContexts[tid];
-                    PrepareShaderDeferred(Context);
-                    OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
-                    UINT offset = 0;
-                    // 버텍스 버퍼 업데이트
-                    Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
-                    if (RenderData->IndexBuffer)
+                threads.push_back(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh, &CommandList]()
                     {
-                        Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-                    }
-
-                    Context->VSSetConstantBuffers(0, 1, &ConstantBuffer);
-                    Context->VSSetConstantBuffers(5, 1, &ConstantBufferView);
-                    Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
-                    Context->VSSetConstantBuffers(7, 1, &GridConstantBuffer);
-                    Context->VSSetConstantBuffers(13, 1, &LinePrimitiveBuffer);
-
-                    Context->PSSetConstantBuffers(0, 1, &ConstantBuffer);
-                    Context->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
-                    Context->PSSetConstantBuffers(3, 1, &FlagBuffer);
-                    Context->PSSetConstantBuffers(7, 1, &GridConstantBuffer);
-
-                    UpdateMaterialDeferred(Context, Material->GetMaterialInfo());
-                    Context->RSSetViewports(1, &Graphics->Viewport);
-                    Context->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
-
-                    // Process each FMeshData in the chunk
-                    for (size_t j = i; j < end; ++j)
-                    {
-
-                        const FMeshData& Data = DataArray[j];
-                        FMatrix MVP = Data.WorldMatrix;
-                        FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
-                        UpdateConstantDeferred(Context, MVP, UUIDColor, Data.bIsSelected);
-
-                        // Draw
-                        Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
-
-                    }
-                }));
+                    RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
+                    }));
             }
-
             // Wait for all threads to finish for the current StaticMesh
             for (auto& t : threads)
             {
                 t.join();
             }
-
-
-
         }
     }
 
@@ -1415,6 +1376,49 @@ void FRenderer::RenderBillboards()
         }
     }
     PrepareShader();
+}
+
+void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_t i, size_t end, size_t tid, 
+    UMaterial* Material, const UStaticMesh* StaticMesh, 
+    ID3D11CommandList* &CommandList)
+{
+    {
+        ID3D11DeviceContext* Context = Graphics->DeferredContexts[tid];
+        PrepareShaderDeferred(Context);
+        OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+        UINT offset = 0;
+        // 버텍스 버퍼 업데이트
+        Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+        if (RenderData->IndexBuffer)
+        {
+            Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+        }
+
+        Context->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Context->VSSetConstantBuffers(5, 1, &ConstantBufferView);
+        Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
+
+        Context->PSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Context->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
+
+        UpdateMaterialDeferred(Context, Material->GetMaterialInfo());
+        Context->RSSetViewports(1, &Graphics->Viewport);
+        Context->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+
+        // Process each FMeshData in the chunk
+        for (size_t j = i; j < end; ++j)
+        {
+
+            const FMeshData& Data = DataArray[j];
+            FMatrix MVP = Data.WorldMatrix;
+            FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
+            UpdateConstantDeferred(Context, MVP, UUIDColor, Data.bIsSelected);
+
+            // Draw
+            Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+
+        }
+    }
 }
 
 void FRenderer::CreateQuad()
