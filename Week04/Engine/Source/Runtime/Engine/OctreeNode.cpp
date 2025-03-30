@@ -1,5 +1,7 @@
 #include "OctreeNode.h"
 
+#include <filesystem>
+
 #include "UnrealEd/EditorViewportClient.h"
 #include "UObject/Casts.h"
 #include "Engine/Classes/Components/PrimitiveComponent.h"
@@ -116,45 +118,62 @@ bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector
     tmin = -FLT_MAX;
     tmax = FLT_MAX;
     FVector RayDir = PickPosition - PickOrigin;
-    float invD = 1.0f / RayDir.x;
-    float t0 = (BoundBox.min.x - PickOrigin.x) * invD;
-    float t1 = (BoundBox.max.x - PickOrigin.x) * invD;
-    if (invD < 0.0f) {
-        float temp = t0;
-        t0 = t1;
-        t1 = temp;
+
+    float invD;
+    float t0;
+    float t1;
+    
+    if (RayDir.x != 0.f)
+    {
+        invD = 1.0f / RayDir.x;
+        t0 = (BoundBox.min.x - PickOrigin.x) * invD;
+        t1 = (BoundBox.max.x - PickOrigin.x) * invD;
+        if (invD < 0.0f)
+        {
+            std::swap(t0, t1);
+        }
+        tmin = FMath::Max(tmin, t0);
+        tmax = FMath::Min(tmax, t1);
+        if (tmax < tmin)
+        {
+            return false;
+        }
     }
-    tmin = FMath::Max(tmin, t0);
-    tmax = FMath::Min(tmax, t1);
-    if (tmax < tmin) {
-        return false;
+    
+    if (RayDir.y != 0.f)
+    {
+        invD = 1.0f / RayDir.y;
+        t0 = (BoundBox.min.y - PickOrigin.y) * invD;
+        t1 = (BoundBox.max.y - PickOrigin.y) * invD;
+        if (invD < 0.0f)
+        {
+            std::swap(t0, t1);
+        }
+        tmin = FMath::Max(tmin, t0);
+        tmax = FMath::Min(tmax, t1);
+        if (tmax < tmin)
+        {
+            return false;
+        }
     }
-    invD = 1.0f / RayDir.y;
-    t0 = (BoundBox.min.y - PickOrigin.y) * invD;
-    t1 = (BoundBox.max.y - PickOrigin.y) * invD;
-    if (invD < 0.0f) {
-        float temp = t0;
-        t0 = t1;
-        t1 = temp;
+
+    if (RayDir.z != 0.f)
+    {
+        invD = 1.0f / RayDir.z;
+        t0 = (BoundBox.min.z - PickOrigin.z) * invD;
+        t1 = (BoundBox.max.z - PickOrigin.z) * invD;
+        if (invD < 0.0f)
+        {
+            std::swap(t0, t1);
+        }
+        tmin = FMath::Max(tmin, t0);
+        tmax = FMath::Min(tmax, t1);
+        if (tmax < tmin)
+        {
+            return false;
+        }
     }
-    tmin = FMath::Max(tmin, t0);
-    tmax = FMath::Min(tmax, t1);
-    if (tmax < tmin) {
-        return false;
-    }
-    invD = 1.0f / RayDir.z;
-    t0 = (BoundBox.min.z - PickOrigin.z) * invD;
-    t1 = (BoundBox.max.z - PickOrigin.z) * invD;
-    if (invD < 0.0f) {
-        float temp = t0;
-        t0 = t1;
-        t1 = temp;
-    }
-    tmin = FMath::Max(tmin, t0);
-    tmax = FMath::Min(tmax, t1);
-    if (tmax < tmin) {
-        return false;
-    }
+    
     return true;
 }
 
@@ -162,7 +181,10 @@ void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOri
 {
     float tmin, tmax;
     if (!RayIntersectsOctree(PickPosition, PickOrigin, tmin, tmax))
+    {
         return;
+    }
+    
     if (bIsLeaf)
     {
         for (UPrimitiveComponent* Comp : Components)
