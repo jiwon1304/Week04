@@ -1237,7 +1237,7 @@ void FRenderer::RenderGizmos()
         OBJ::FStaticMeshRenderData* renderData = GizmoComp->GetStaticMesh()->GetRenderData();
         if (renderData == nullptr) continue;
 
-        // 기즈모는 예외로 매트릭스 계산해서 가져옴.
+        // 기즈모는 예외로 매트릭스 계산해서 가져옴. 구현상 한계 때문.
         FMatrix Model = JungleMath::CreateModelMatrix(GizmoComp->GetWorldLocation(),
             GizmoComp->GetWorldRotation(),
             GizmoComp->GetWorldScale()

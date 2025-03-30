@@ -128,6 +128,7 @@ void UWorld::SetPickedActor(AActor* InActor)
 
     // W04 - LocalGizmo의 Tick에서 하던걸 선택시 한번만 하게 변경. 기즈모 조작을 하지 않는다고 가정했기 때문. 
     LocalGizmo->SetActorLocation(SelectedActor->GetActorLocation());
+    
     /*
     if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_LOCAL)
     {

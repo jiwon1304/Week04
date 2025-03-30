@@ -204,28 +204,23 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
 {
     if (!(ShowFlags::GetInstance().currentFlags & EEngineShowFlags::SF_Primitives)) return;
     
-    const UActorComponent* Possible = nullptr;
-    int maxIntersect = 0;
-    float minDistance = FLT_MAX;
-    TArray<UPrimitiveComponent*> Components;
-    Frustum Frustum = GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetFrustum();
-    FOctreeNode* Octree = GetWorld()->GetOctree();
     FMatrix ViewMatrix = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix();
     FMatrix InverseView = FMatrix::Inverse(ViewMatrix);
+    
+    FOctreeNode* Octree = GetWorld()->GetOctree();
     FVector WorldPickPosition = InverseView.TransformPosition(pickPosition);
     FVector RayOrigin = GetEngine().GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective.GetLocation();
+    TArray<UPrimitiveComponent*> Components;
     Octree->QueryByRay(WorldPickPosition, RayOrigin, Components);
-    for (const auto& iter : Components) {
-        UPrimitiveComponent* pObj;
-        if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
-        {
-            pObj = static_cast<UPrimitiveComponent*>(iter);
-        }
-        else
-        {
-            continue;
-        }
-
+    
+    int maxIntersect = 0;
+    float minDistance = FLT_MAX;
+    
+    const UActorComponent* Possible = nullptr;
+    
+    for (const auto& iter : Components)
+    {
+        UPrimitiveComponent* pObj = Cast<UPrimitiveComponent>(iter);
         if (pObj && !pObj->IsA<UGizmoBaseComponent>())
         {
             float Distance = 0.0f;
@@ -236,48 +231,19 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
                 {
                     minDistance = Distance;
                     maxIntersect = currentIntersectCount;
+                    
                     Possible = pObj;
                 }
                 else if (abs(Distance - minDistance) < FLT_EPSILON && currentIntersectCount > maxIntersect)
                 {
                     maxIntersect = currentIntersectCount;
+                    
                     Possible = pObj;
                 }
             }
         }
     }
-    /*for (const auto iter : TObjectRange<UPrimitiveComponent>())
-    {
-        UPrimitiveComponent* pObj;
-        if (iter->IsA<UPrimitiveComponent>() || iter->IsA<ULightComponentBase>())
-        {
-            pObj = static_cast<UPrimitiveComponent*>(iter);
-        }
-        else
-        {
-            continue;
-        }
-
-        if (pObj && !pObj->IsA<UGizmoBaseComponent>())
-        {
-            float Distance = 0.0f;
-            int currentIntersectCount = 0;
-            if (RayIntersectsObject(pickPosition, pObj, Distance, currentIntersectCount))
-            {
-                if (Distance < minDistance)
-                {
-                    minDistance = Distance;
-                    maxIntersect = currentIntersectCount;
-                    Possible = pObj;
-                }
-                else if (abs(Distance - minDistance) < FLT_EPSILON && currentIntersectCount > maxIntersect)
-                {
-                    maxIntersect = currentIntersectCount;
-                    Possible = pObj;
-                }
-            }
-        }
-    }*/
+    
     if (Possible)
     {
         GetWorld()->SetPickedActor(Possible->GetOwner());
