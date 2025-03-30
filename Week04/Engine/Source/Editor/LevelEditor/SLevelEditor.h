@@ -12,7 +12,10 @@ public:
     SLevelEditor();
     ~SLevelEditor();
     void Initialize();
-    void Tick(double deltaTime);
+    /**
+     * @return 렌더러를 업데이트 해야하는 경우 true
+     */
+    bool Tick(double deltaTime);
     void Input();
     void Release();
     

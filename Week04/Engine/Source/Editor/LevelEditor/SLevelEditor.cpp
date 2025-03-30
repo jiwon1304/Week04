@@ -35,8 +35,10 @@ void SLevelEditor::Initialize()
     bInitialize = true;
 }
 
-void SLevelEditor::Tick(double deltaTime)
+bool SLevelEditor::Tick(double deltaTime)
 {
+    return ActiveViewportClient->Tick(deltaTime); // W04
+
     if (bMultiViewportMode) {
         POINT pt;
         GetCursorPos(&pt);
@@ -53,8 +55,6 @@ void SLevelEditor::Tick(double deltaTime)
     }
     //Test Code Cursor icon End
     OnResize();
-
-    ActiveViewportClient->Tick(deltaTime);
 }
 
 void SLevelEditor::Input()

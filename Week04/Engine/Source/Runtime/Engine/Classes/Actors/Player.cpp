@@ -25,8 +25,6 @@ AEditorPlayer::AEditorPlayer()
 
 void AEditorPlayer::Tick(float DeltaTime)
 {
-    Super::Tick(DeltaTime);
-    Input(DeltaTime);
 }
 
 void AEditorPlayer::SetHWND(HWND InHWnd)
@@ -34,10 +32,13 @@ void AEditorPlayer::SetHWND(HWND InHWnd)
     hWnd = InHWnd;
 }
 
-void AEditorPlayer::Input(float DeltaTime)
+bool AEditorPlayer::Input(float DeltaTime)
 {
+    bool bRet = false;
+    
     if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
     {
+        bRet = true;
         if (!bLeftMouseDown)
         {
             bLeftMouseDown = true;
@@ -83,7 +84,8 @@ void AEditorPlayer::Input(float DeltaTime)
     {
         if (bLeftMouseDown)
         {
-            bLeftMouseDown = false; // ���콺 ������ ��ư�� ���� ���� �ʱ�ȭ
+            bRet = true;
+            bLeftMouseDown = false;
             GetWorld()->SetPickingGizmo(nullptr);
         }
     }
@@ -91,6 +93,7 @@ void AEditorPlayer::Input(float DeltaTime)
     {
         if (!bSpaceDown)
         {
+            bRet = true;
             AddControlMode();
             bSpaceDown = true;
         }
@@ -102,44 +105,8 @@ void AEditorPlayer::Input(float DeltaTime)
             bSpaceDown = false;
         }
     }
-    if (GetAsyncKeyState(VK_RBUTTON) & 0x8000)
-    {
-        if (!bRightMouseDown)
-        {
-            bRightMouseDown = true;
-        }
-    }
-    else
-    {
-        bRightMouseDown = false;
 
-        if (GetAsyncKeyState('Q') & 0x8000)
-        {
-            //GetWorld()->SetPickingObj(nullptr);
-        }
-        if (GetAsyncKeyState('W') & 0x8000)
-        {
-            cMode = CM_TRANSLATION;
-        }
-        if (GetAsyncKeyState('E') & 0x8000)
-        {
-            cMode = CM_ROTATION;
-        }
-        if (GetAsyncKeyState('R') & 0x8000)
-        {
-            cMode = CM_SCALE;
-        }
-    }
-
-    if (GetAsyncKeyState(VK_DELETE) & 0x8000)
-    {
-        UWorld* World = GetWorld();
-        if (AActor* PickedActor = World->GetSelectedActor())
-        {
-            World->DestroyActor(PickedActor);
-            World->SetPickedActor(nullptr);
-        }
-    }
+    return bRet;
 }
 
 bool AEditorPlayer::PickGizmo(FVector& pickPosition)

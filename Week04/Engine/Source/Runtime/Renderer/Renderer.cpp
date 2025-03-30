@@ -1026,8 +1026,15 @@ void FRenderer::RenderBatch(
     Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-void FRenderer::PrepareRender()
+void FRenderer::PrepareRender(bool bCameraMoved)
 {
+    if (!bCameraMoved)
+    {
+        return;
+    }
+
+    ClearRenderArr();
+    
     Frustum Frustum = ActiveViewport->GetFrustum();
     FOctreeNode* Octree = World->GetOctree();
 
@@ -1152,8 +1159,6 @@ void FRenderer::Render()
     
     RenderLight(World, ActiveViewport);
     */
-    
-    ClearRenderArr();
 }
 
 void FRenderer::RenderStaticMeshes()

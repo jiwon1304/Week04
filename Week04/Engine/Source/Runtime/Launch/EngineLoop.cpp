@@ -138,10 +138,10 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 }
 
 
-void FEngineLoop::Render()
+void FEngineLoop::Render(bool bCameraMoved)
 {
     GraphicDevice.Prepare();
-    Renderer.PrepareRender();
+    Renderer.PrepareRender(bCameraMoved);
     Renderer.Render();
     
     /*if (LevelEditor->IsMultiViewport())
@@ -164,6 +164,8 @@ void FEngineLoop::Render()
 
 void FEngineLoop::Tick()
 {
+    Renderer.PrepareRender(true); // Force update
+    
     double TargetDeltaTime = -1.f;
     
     bool bShouldLimitFPS = TargetFPS > 0;
@@ -201,19 +203,23 @@ void FEngineLoop::Tick()
             }
         }
 
-        Input();
-        GWorld->Tick(ElapsedTime);
-        LevelEditor->Tick(ElapsedTime);
-        Render();
+        bool bShouldUpdateRender = false;
+        bShouldUpdateRender |= GWorld->Tick(ElapsedTime);
+        bShouldUpdateRender |= LevelEditor->Tick(ElapsedTime);
+        if (bShouldUpdateRender)
+        {
+            Render(bShouldUpdateRender);
+        }
+        else
+        {
+            // TODO: Fake render
+        }
 
         UIMgr->BeginFrame();
 
         Console::GetInstance().Draw();
 
         UIMgr->EndFrame();
-
-        // Pending 처리된 오브젝트 제거
-        // GUObjectArray.ProcessPendingDestroyObjects(); // W04
 
         GraphicDevice.SwapBuffer();
 

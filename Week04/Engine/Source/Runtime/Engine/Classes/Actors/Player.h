@@ -17,7 +17,7 @@ class AEditorPlayer : public AActor
 
     void SetHWND(HWND InHWnd);
     HWND hWnd;
-    void Input(float DeltaTime);
+    bool Input(float DeltaTime);
     bool PickGizmo(FVector& rayOrigin);
     void PickActor(const FVector& pickPosition);
     void AddControlMode();

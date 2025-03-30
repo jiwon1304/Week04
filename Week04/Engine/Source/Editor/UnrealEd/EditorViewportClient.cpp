@@ -39,14 +39,24 @@ void FEditorViewportClient::Initialize(int32 viewportIndex)
     UpdateFrustum();
 }
 
-void FEditorViewportClient::Tick(float DeltaTime)
+bool FEditorViewportClient::Tick(float DeltaTime)
 {
     Input(DeltaTime);
-    if (bCameraMoved) {
+    
+    bool bReturn = bCameraMoved || bProjectionUpdated;
+    if (bCameraMoved)
+    {
         UpdateViewMatrix();
         UpdateFrustum();
         bCameraMoved = false;
     }
+    if (bProjectionUpdated)
+    {
+        // 이 값은 플래그만 세팅해줌.
+        bProjectionUpdated = false;
+    }
+    
+    return bReturn;
 }
 
 void FEditorViewportClient::Release()
@@ -55,8 +65,6 @@ void FEditorViewportClient::Release()
         delete Viewport;
  
 }
-
-
 
 void FEditorViewportClient::Input(float DeltaTime)
 {
@@ -129,6 +137,8 @@ void FEditorViewportClient::Input(float DeltaTime)
     {
         bRightMouseDown = false; // 마우스 오른쪽 버튼을 떼면 상태 초기화
     }
+    
+    return; // W04
 
     // Focus Selected Actor
     if (GetAsyncKeyState('F') & 0x8000)
@@ -311,6 +321,7 @@ void FEditorViewportClient::UpdateProjectionMatrix()
         );
     }
     FEngineLoop::Renderer.UpdateProjectionMatrix(Projection);
+    bProjectionUpdated = true;
 }
 
 void FEditorViewportClient::UpdateFrustum()

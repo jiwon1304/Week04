@@ -100,10 +100,10 @@ void UWorld::ReleaseBaseObject()
 
 }
 
-void UWorld::Tick(float DeltaTime)
+bool UWorld::Tick(float DeltaTime)
 {
+	return EditorPlayer->Input(DeltaTime); // TODO: W04 - 최적화 하기
 	//camera->TickComponent(DeltaTime); // W04
-	EditorPlayer->Tick(DeltaTime); // TODO: W04 - 최적화 하기
 	// LocalGizmo->Tick(DeltaTime); // TODO: W04 - 기즈모 조작 필요하면 주석 제거
 
     /* W04

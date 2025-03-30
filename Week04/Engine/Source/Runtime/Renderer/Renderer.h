@@ -152,7 +152,7 @@ public: // line shader
     //Render Pass Demo
     void SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport);
     void SetWorld(UWorld* InWorld);
-    void PrepareRender();
+    void PrepareRender(bool bCameraMoved);
     bool IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const;
     void ClearRenderArr();
     void Render();
