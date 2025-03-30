@@ -14,6 +14,8 @@ FOctreeNode::FOctreeNode(FVector Min, FVector Max)
 
 void FOctreeNode::SubDivide()
 {
+    if (!bIsLeaf) return; // leaf node일 때만 쪼개기
+    
     const FVector Center = BoundBox.GetCenter();
     const FVector Extent = BoundBox.GetExtent();
     const FVector Half = Extent * 0.5f;
@@ -55,7 +57,7 @@ bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
     }
     
     Components.Add(Component);
-    if (Components.Num() > 32 && Depth < 24)
+    if (Components.Num() > 8 && Depth < 24)
     {
         SubDivide();
         TArray<UPrimitiveComponent*> Temp = Components;
@@ -182,16 +184,5 @@ void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOri
 
 uint32 FOctreeNode::CountAllComponents() const
 {
-    uint32 Count = Components.Num();
-    if (!bIsLeaf)
-    {
-        for (int32 i = 0; i < 8; ++i)
-        {
-            if (Children[i])
-            {
-                Count += Children[i]->CountAllComponents();
-            }
-        }
-    }
-    return Count;
+    return Components.Num();
 }
