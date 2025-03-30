@@ -34,8 +34,11 @@ static LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
             //UGraphicsDevice 객체의 OnResize 함수 호출
             if (FEngineLoop::GraphicDevice.SwapChain)
             {
+                FEngineLoop::Renderer.PrepareResize();
                 FEngineLoop::GraphicDevice.OnResize(hWnd);
+                FEngineLoop::Renderer.OnResize(FEngineLoop::GraphicDevice.SwapchainDesc);
             }
+            
             if (GEngineLoop.GetLevelEditor())
             {
                 if (FEditorViewportClient* ViewportClient = GEngineLoop.GetLevelEditor()->GetViewports()[0].get())
@@ -134,32 +137,22 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 
     LevelEditor->OffMultiViewport();
     
+    Renderer.PrepareRender(true); // Force update
+    
     return 0;
 }
 
 
-void FEngineLoop::Render()
+void FEngineLoop::Render(bool bShouldUpdateRender)
 {
-    GraphicDevice.Prepare();
-    Renderer.PrepareRender();
+    Renderer.PrepareRender(bShouldUpdateRender);
     Renderer.Render();
-    
-    /*if (LevelEditor->IsMultiViewport())
-    {
-        std::shared_ptr<FEditorViewportClient> viewportClient = GetLevelEditor()->GetActiveViewportClient();
-        for (int i = 0; i < 1; ++i)
-        {
-            LevelEditor->SetViewportClient(i);
-            Renderer.PrepareRender();
-            Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
-        }
-        GetLevelEditor()->SetViewportClient(viewportClient);
-    }
-    else
-    {
-        Renderer.PrepareRender();
-        Renderer.Render(GetWorld(),LevelEditor->GetActiveViewportClient());
-    }*/
+}
+
+void FEngineLoop::QuadRender()
+{
+    Renderer.PrepareQuad();
+    Renderer.RenderQuad();
 }
 
 void FEngineLoop::Tick()
@@ -201,19 +194,22 @@ void FEngineLoop::Tick()
             }
         }
 
-        Input();
-        GWorld->Tick(ElapsedTime);
-        LevelEditor->Tick(ElapsedTime);
-        Render();
+        bool bShouldUpdateRender = false;
+        bShouldUpdateRender |= GWorld->Tick(ElapsedTime);
+        bShouldUpdateRender |= LevelEditor->Tick(ElapsedTime);
+        if (bShouldUpdateRender || true) // 억제기
+        {
+            Render(bShouldUpdateRender);
+        }
+
+        // Final Render
+        QuadRender();
 
         UIMgr->BeginFrame();
 
         Console::GetInstance().Draw();
 
         UIMgr->EndFrame();
-
-        // Pending 처리된 오브젝트 제거
-        // GUObjectArray.ProcessPendingDestroyObjects(); // W04
 
         GraphicDevice.SwapBuffer();
 

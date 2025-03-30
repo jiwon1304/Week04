@@ -152,7 +152,7 @@ public: // line shader
     //Render Pass Demo
     void SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewport);
     void SetWorld(UWorld* InWorld);
-    void PrepareRender();
+    void PrepareRender(bool bShouldUpdateRender);
     bool IsInsideFrustum(UStaticMeshComponent* StaticMeshComp) const;
     void ClearRenderArr();
     void Render();
@@ -162,8 +162,6 @@ public: // line shader
     void RenderBillboards();
 
 private:
-    std::vector<MeshMaterialPair> SortedStaticMeshObjs;
-
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
         uint32 SubMeshIndex;
@@ -193,8 +191,47 @@ public:
     ID3D11ShaderResourceView* pConeSRV = nullptr;
     ID3D11ShaderResourceView* pOBBSRV = nullptr;
 
+#pragma region quad
 private:
     std::shared_ptr<FEditorViewportClient> ActiveViewport;
     UWorld* World = nullptr;
+
+    struct FQuadVertex
+    {
+        float X, Y, Z, U, V;
+    };
+
+    FQuadVertex QuadVertices[4] = {
+        {-1.f, 1.f, 0.f, 0.f, 0.f},
+        {1.f, 1.f, 0.f, 1.f, 0.f },
+        {-1.f, -1.f, 0.f, 0.f, 1.f},
+        {1.f, -1.f, 0.f, 1.f, 1.f}
+    };
+
+    uint32 QuadIndides[6] = { 0, 1, 2, 2, 1, 3 };
+
+    ID3D11Buffer* QuadVertexBuffer = nullptr;
+    ID3D11Buffer* QuadIndexBuffer = nullptr;
+
+    FLOAT ClearColor[4] = { 0.025f, 0.025f, 0.025f, 1.0f };
+    ID3D11Texture2D* QuadTexture = nullptr;
+    ID3D11RenderTargetView* QuadRTV = nullptr;
+    ID3D11ShaderResourceView* QuadTextureSRV = nullptr;
+    ID3D11SamplerState* QuadSampler = nullptr;
+
+    ID3D11VertexShader* QuadVertexShader = nullptr;
+    ID3D11PixelShader* QuadPixelShader = nullptr;
+    ID3D11InputLayout* QuadInputLayout = nullptr;
+
+    void CreateQuad();
+    void ReleaseQuad();
+
+public:
+    void PrepareQuad();
+    void RenderQuad();
+
+    void PrepareResize();
+    void OnResize(const DXGI_SWAP_CHAIN_DESC& SwapchainDesc);
+#pragma endregion quad
 };
 

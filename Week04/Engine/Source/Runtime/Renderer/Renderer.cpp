@@ -21,6 +21,9 @@
 #include "UObject/UObjectIterator.h"
 #include "Components/SkySphereComponent.h"
 #include "OctreeNode.h"
+#include "BaseGizmos/TransformGizmo.h"
+#include "UObject/UObjectIterator.h"
+#include "BaseGizmos/GizmoBaseComponent.h"
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -31,6 +34,8 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateConstantBuffer();
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
+
+    CreateQuad();
 
     BindBuffers();
 }
@@ -66,6 +71,8 @@ void FRenderer::Release()
     ReleaseTextureShader();
     ReleaseLineShader();
     ReleaseConstantBuffer();
+
+    ReleaseQuad();
 }
 
 void FRenderer::CreateShader()
@@ -102,13 +109,11 @@ void FRenderer::ReleaseShader()
         InputLayout->Release();
         InputLayout = nullptr;
     }
-
     if (PixelShader)
     {
         PixelShader->Release();
         PixelShader = nullptr;
     }
-
     if (VertexShader)
     {
         VertexShader->Release();
@@ -1026,8 +1031,26 @@ void FRenderer::RenderBatch(
     Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
-void FRenderer::PrepareRender()
+void FRenderer::PrepareRender(bool bShouldUpdateRender)
 {
+    if (!bShouldUpdateRender)
+    {
+        return;
+    }
+
+    // Setup
+    Graphics->DeviceContext->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+    Graphics->DeviceContext->ClearRenderTargetView(QuadRTV, ClearColor);
+    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
+    // End Setup
+
+    // 렌더할 컴포넌트를 담기 전에 배열 비움
+    ClearRenderArr();
+    
     Frustum Frustum = ActiveViewport->GetFrustum();
     FOctreeNode* Octree = World->GetOctree();
 
@@ -1035,17 +1058,15 @@ void FRenderer::PrepareRender()
     Octree->FrustumCull(Frustum, Components);
 
     AActor* SelectedActor = World->GetSelectedActor();
+    UTransformGizmo* GizmoActor = World->LocalGizmo;
     
     for (const auto& Comp : Components)
     {
-        if (UGizmoBaseComponent* pGizmoComp = Cast<UGizmoBaseComponent>(Comp))
+        if (GizmoActor->GetComponents().Contains(Comp))
         {
-            if (SelectedActor)
-            {
-                GizmoObjs.Add(pGizmoComp);
-            }
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
         }
-        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위해 조건문 변경
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
         else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
         {
             UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
@@ -1070,6 +1091,20 @@ void FRenderer::PrepareRender()
                 MaterialMeshMap[Material][StaticMesh].push_back(Data);
                 SubMeshIdx++;
             }
+        }
+    }
+
+    if (SelectedActor)
+    {
+        ControlMode CM = World->GetEditorPlayer()->GetControlMode();
+        const TArray<UStaticMeshComponent*>& CompArr =
+            (CM == ControlMode::CM_TRANSLATION) ? GizmoActor->GetArrowArr() :
+            (CM == ControlMode::CM_ROTATION)    ? GizmoActor->GetDiscArr()  :
+                                                  GizmoActor->GetScaleArr();
+
+        for (const auto& Comp : CompArr)
+        {
+            GizmoObjs.Add(Cast<UGizmoBaseComponent>(Comp));
         }
     }
 }
@@ -1148,8 +1183,6 @@ void FRenderer::Render()
     
     RenderLight(World, ActiveViewport);
     */
-    
-    ClearRenderArr();
 }
 
 void FRenderer::RenderStaticMeshes()
@@ -1203,24 +1236,12 @@ void FRenderer::RenderGizmos()
         if (!GizmoComp->GetStaticMesh()) continue;
         OBJ::FStaticMeshRenderData* renderData = GizmoComp->GetStaticMesh()->GetRenderData();
         if (renderData == nullptr) continue;
-        
-        if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ArrowZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_TRANSLATION)
-            continue;
-        else if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::ScaleZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_SCALE)
-            continue;
-        else if ((GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleX ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleY ||
-            GizmoComp->GetGizmoType()==UGizmoBaseComponent::CircleZ)
-            && World->GetEditorPlayer()->GetControlMode() != CM_ROTATION)
-            continue;
-        
-        FMatrix Model = GizmoComp->GetWorldMatrix();
+
+        // 기즈모는 예외로 매트릭스 계산해서 가져옴. 구현상 한계 때문.
+        FMatrix Model = JungleMath::CreateModelMatrix(GizmoComp->GetWorldLocation(),
+            GizmoComp->GetWorldRotation(),
+            GizmoComp->GetWorldScale()
+        );
         FVector4 UUIDColor = GizmoComp->EncodeUUID() / 255.0f;
         FMatrix WorldMatrix = Model;
         UpdateConstant(WorldMatrix, UUIDColor, GizmoComp == World->GetPickingGizmo());
@@ -1275,6 +1296,212 @@ void FRenderer::RenderBillboards()
         }
     }
     PrepareShader();
+}
+
+void FRenderer::CreateQuad()
+{
+    // QuadShader
+    ID3DBlob* VertexShaderCSO = nullptr;
+    ID3DBlob* PixelShaderCSO = nullptr;
+    ID3DBlob* Error;
+    D3DCompileFromFile(L"Shaders/QuadShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, &Error);
+    Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &QuadVertexShader);
+
+    D3DCompileFromFile(L"Shaders/QuadShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, &Error);
+    Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &QuadPixelShader);
+
+    D3D11_INPUT_ELEMENT_DESC QuadLayout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+    Graphics->Device->CreateInputLayout(
+        QuadLayout, ARRAYSIZE(QuadLayout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &QuadInputLayout
+    );
+
+    VertexShaderCSO->Release();
+    PixelShaderCSO->Release();
+    if (Error)
+    {
+        Error->Release();
+    }
+
+    // QuadVertexBuffer
+    D3D11_BUFFER_DESC BufferDesc = {};
+    BufferDesc.ByteWidth = sizeof(FQuadVertex) * 4;
+    BufferDesc.Usage = D3D11_USAGE_IMMUTABLE;
+    BufferDesc.CPUAccessFlags = 0;
+    BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    
+    D3D11_SUBRESOURCE_DATA InitData = {};
+    InitData.pSysMem = QuadVertices;
+    
+    Graphics->Device->CreateBuffer(&BufferDesc, &InitData, &QuadVertexBuffer);
+
+    // QuadIndexBuffer
+    BufferDesc.ByteWidth = sizeof(uint32) * 6;
+    BufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+
+    InitData.pSysMem = QuadIndides;
+    
+    Graphics->Device->CreateBuffer(&BufferDesc, &InitData, &QuadIndexBuffer);
+
+    // Render target
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
+    TextureDesc.Width = Graphics->screenWidth;
+    TextureDesc.Height = Graphics->screenHeight;
+    TextureDesc.MipLevels = 1;
+    TextureDesc.ArraySize = 1;
+    TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    TextureDesc.SampleDesc.Count = 1;
+    TextureDesc.SampleDesc.Quality = 0;
+    TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    TextureDesc.CPUAccessFlags = 0;
+    TextureDesc.MiscFlags = 0;
+    Graphics->Device->CreateTexture2D(&TextureDesc, nullptr, &QuadTexture);
+
+    // SRV
+    Graphics->Device->CreateShaderResourceView(QuadTexture, nullptr, &QuadTextureSRV);
+
+    // RTV
+    D3D11_RENDER_TARGET_VIEW_DESC RenderTargetViewDesc;
+    ZeroMemory(&RenderTargetViewDesc, sizeof(RenderTargetViewDesc));
+    RenderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    RenderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    Graphics->Device->CreateRenderTargetView(QuadTexture, &RenderTargetViewDesc, &QuadRTV);
+
+    // Sampler
+    D3D11_SAMPLER_DESC SamplerDesc = {};
+    SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+    SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+    SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+    SamplerDesc.MipLODBias = -1; 
+    SamplerDesc.MinLOD = 0;
+    SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+    Graphics->Device->CreateSamplerState(&SamplerDesc, &QuadSampler);
+}
+
+void FRenderer::ReleaseQuad()
+{
+    if (QuadInputLayout)
+    {
+        QuadInputLayout->Release();
+        QuadInputLayout = nullptr;
+    }
+    if (QuadPixelShader)
+    {
+        QuadPixelShader->Release();
+        QuadPixelShader = nullptr;
+    }
+    if (QuadVertexShader)
+    {
+        QuadVertexShader->Release();
+        QuadVertexShader = nullptr;
+    }
+}
+
+void FRenderer::PrepareQuad()
+{
+    Graphics->DeviceContext->OMSetRenderTargets(1, &Graphics->BackBufferRTV, nullptr);
+    Graphics->DeviceContext->RSSetViewports(1, &Graphics->Viewport);
+    
+    Graphics->DeviceContext->VSSetShader(QuadVertexShader, nullptr, 0);
+    Graphics->DeviceContext->PSSetShader(QuadPixelShader, nullptr, 0);
+
+    uint32 Stride = sizeof(FQuadVertex);
+    uint32 Offset = 0;
+    Graphics->DeviceContext->IASetVertexBuffers(0, 1, &QuadVertexBuffer, &Stride, &Offset);
+    Graphics->DeviceContext->IASetIndexBuffer(QuadIndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+    Graphics->DeviceContext->IASetInputLayout(QuadInputLayout);
+
+    Graphics->DeviceContext->PSSetShaderResources(127, 1, &QuadTextureSRV);
+}
+
+void FRenderer::RenderQuad()
+{
+    Graphics->DeviceContext->DrawIndexed(6, 0, 0);
+}
+
+void FRenderer::PrepareResize()
+{
+    Graphics->DeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
+
+    if (QuadRTV)
+    {
+        QuadRTV->Release();
+        QuadRTV = nullptr;
+    }
+    if (QuadTexture)
+    {
+        QuadTexture->Release();
+        QuadTexture = nullptr;
+    }
+    if (QuadTextureSRV)
+    {
+        QuadTextureSRV->Release();
+        QuadTextureSRV = nullptr;
+    }
+}
+
+void FRenderer::OnResize(const DXGI_SWAP_CHAIN_DESC& SwapchainDesc)
+{
+    uint32 Width = Graphics->screenWidth;
+    uint32 Height = Graphics->screenHeight;
+    if (Width == 0 || Height == 0)
+    {
+        return;
+    }
+
+    // Create New
+    HRESULT hr = S_OK;
+    // Render target
+    D3D11_TEXTURE2D_DESC TextureDesc = {};
+    TextureDesc.Width = Width;
+    TextureDesc.Height = Height;
+    TextureDesc.MipLevels = 1;
+    TextureDesc.ArraySize = 1;
+    TextureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    TextureDesc.SampleDesc.Count = 1;
+    TextureDesc.SampleDesc.Quality = 0;
+    TextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    TextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+    TextureDesc.CPUAccessFlags = 0;
+    TextureDesc.MiscFlags = 0;
+    hr = Graphics->Device->CreateTexture2D(&TextureDesc, nullptr, &QuadTexture);
+    if (FAILED(hr))
+    {
+        return;
+    }
+    // SRV
+    hr = Graphics->Device->CreateShaderResourceView(QuadTexture, nullptr, &QuadTextureSRV);
+    if (FAILED(hr))
+    {
+        return;
+    }
+    // RTV
+    D3D11_RENDER_TARGET_VIEW_DESC RenderTargetViewDesc;
+    ZeroMemory(&RenderTargetViewDesc, sizeof(RenderTargetViewDesc));
+    RenderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    RenderTargetViewDesc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+    hr = Graphics->Device->CreateRenderTargetView(QuadTexture, &RenderTargetViewDesc, &QuadRTV);
+    if (FAILED(hr))
+    {
+        return;
+    }
+
+    
+
+    D3D11_VIEWPORT Viewport = {
+        .TopLeftX = 0.f,
+        .TopLeftY = 0.f,
+        .Width = static_cast<float>(Width),
+        .Height = static_cast<float>(Height),
+        .MinDepth = 0.0f,
+        .MaxDepth = 1.0f
+    };
+    Graphics->DeviceContext->RSSetViewports(1, &Viewport);
 }
 
 void FRenderer::RenderLight()

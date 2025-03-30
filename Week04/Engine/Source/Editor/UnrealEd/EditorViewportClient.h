@@ -107,7 +107,10 @@ public:
     virtual void        Draw(FViewport* Viewport) override;
     virtual UWorld*     GetWorld() const { return NULL; };
     void Initialize(int32 viewportIndex);
-    void Tick(float DeltaTime);
+    /**
+     * @return 카메라 움직임 여부 
+     */
+    bool Tick(float DeltaTime);
     void Release();
 
     void Input(float DeltaTime);
@@ -183,6 +186,7 @@ private: // Input
     POINT lastMousePos;
     bool bRightMouseDown = false;
     bool bCameraMoved = false;
+    bool bProjectionUpdated = false;
 
 public:
     void LoadConfig(const TMap<FString, FString>& config);

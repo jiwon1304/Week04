@@ -30,7 +30,10 @@ public:
     void Initialize(HWND hWnd);
     void CreateBaseObject(HWND hWnd);
     void ReleaseBaseObject();
-    void Tick(float DeltaTime);
+    /**
+     * @return 렌더러를 업데이트 해야하는 경우 true
+     */
+    bool Tick(float DeltaTime);
     void Release();
     void LoadSceneData(SceneData Scene, std::shared_ptr<FEditorViewportClient> ViewportClient);
 

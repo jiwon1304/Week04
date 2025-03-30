@@ -100,10 +100,10 @@ void UWorld::ReleaseBaseObject()
 
 }
 
-void UWorld::Tick(float DeltaTime)
+bool UWorld::Tick(float DeltaTime)
 {
+	return EditorPlayer->Input(DeltaTime); // TODO: W04 - 최적화 하기
 	//camera->TickComponent(DeltaTime); // W04
-	EditorPlayer->Tick(DeltaTime); // TODO: W04 - 최적화 하기
 	// LocalGizmo->Tick(DeltaTime); // TODO: W04 - 기즈모 조작 필요하면 주석 제거
 
     /* W04
@@ -128,6 +128,7 @@ void UWorld::SetPickedActor(AActor* InActor)
 
     // W04 - LocalGizmo의 Tick에서 하던걸 선택시 한번만 하게 변경. 기즈모 조작을 하지 않는다고 가정했기 때문. 
     LocalGizmo->SetActorLocation(SelectedActor->GetActorLocation());
+    
     /*
     if (GetWorld()->GetEditorPlayer()->GetCoordiMode() == CoordiMode::CDM_LOCAL)
     {
