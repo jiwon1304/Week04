@@ -7,7 +7,7 @@
 
 FOctreeNode::FOctreeNode(FVector Min, FVector Max)
     : BoundBox(Min, Max)
-    , Components(TArray<UPrimitiveComponent*>())
+    , Components(TArray<UStaticMeshComponent*>())
     , Children(TArray<std::unique_ptr<FOctreeNode>>(8))
     , bIsLeaf(true)
 {}
@@ -34,7 +34,7 @@ void FOctreeNode::SubDivide()
     bIsLeaf = false;
 }
 
-bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
+bool FOctreeNode::Insert(UStaticMeshComponent* Component, int32 Depth)
 {
     if (!BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
     {
@@ -58,10 +58,10 @@ bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
     if (Components.Num() > 32 && Depth < 24)
     {
         SubDivide();
-        TArray<UPrimitiveComponent*> Temp = Components;
+        TArray<UStaticMeshComponent*> Temp = Components;
         Components.Empty();
 
-        for (UPrimitiveComponent* Comp : Temp)
+        for (UStaticMeshComponent* Comp : Temp)
         {
             bool bInserted = false;
             for (int32 i = 0; i < 8; ++i)
@@ -81,7 +81,7 @@ bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
     return true;
 }
 
-void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
+void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UStaticMeshComponent*>& OutComponents)
 {
     if (!Frustum.Intersects(BoundBox))
     {
@@ -90,7 +90,7 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
     
     if (bIsLeaf)
     {
-        for (UPrimitiveComponent* Comp : Components)
+        for (UStaticMeshComponent* Comp : Components)
         {
             if (Frustum.Intersects(Comp->GetWorldBoundingBox()))
             {
@@ -156,14 +156,14 @@ bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector
     return true;
 }
 
-void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps)
+void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UStaticMeshComponent*>& OutComps)
 {
     float tmin, tmax;
     if (!RayIntersectsOctree(PickPosition, PickOrigin, tmin, tmax))
         return;
     if (bIsLeaf)
     {
-        for (UPrimitiveComponent* Comp : Components)
+        for (UStaticMeshComponent* Comp : Components)
         {
             OutComps.Add(Comp);
         }

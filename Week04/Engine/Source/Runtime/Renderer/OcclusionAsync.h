@@ -14,23 +14,34 @@
 
 constexpr float OCCLUSION_Async_DISTANCE_DIV = 1.1f;  // 적절한 초기값으로 초기화
 constexpr int OCCLUSION_Async_DISTANCE_BIN_NUM = 49 + 1;  // log(1.2f)^100
-constexpr int Occlusion_ASync_BufferSizeWidth = 1024;
-constexpr int Occlusion_ASync_BufferSizeHeight = 1024;
 extern UINT32 NumDisOccluded;
 
 class UPrimitiveComponent;
 class UStaticMeshComponent;
 class FGraphicsDevice;
 
+struct QueryContext
+{
+    ID3D11DeviceContext* Context;
+    std::queue<ID3D11Query*> Queries;
+    std::queue<UStaticMeshComponent*> Meshes;
+    ID3D11CommandList* CommandList;
+    TArray<UStaticMeshComponent*> DisOccludedMeshes;
+};
+
+
+
 // TODO: texture만 받아서 2프레임동안 할수 있도록 만들기.
 class OcclusionAsync
 {
 public:
-    void Init(FGraphicsDevice* graphics);
+    ~OcclusionAsync();
+    void Init(FGraphicsDevice* graphics, int numThreads = 4);
     // InComponents -> MeshesSortedByDistance -> returnValue
-    TArray<UStaticMeshComponent*> Query(ID3D11DepthStencilView* DepthStencilSRV, TArray<UPrimitiveComponent*> InComponents);
-    void QueryAsync(ID3D11ShaderResourceView* DepthStencilSRV, TArray<UPrimitiveComponent*> InComponents);
-    bool Get(TArray<UStaticMeshComponent*> OutComponents);
+    void QueryAsync(
+        ID3D11DepthStencilView* DepthStencilSRV, 
+        TArray<UStaticMeshComponent*> InComponents);
+    TArray<UStaticMeshComponent*> GetResult();
 
 private:
     //void Prepare();
@@ -40,7 +51,6 @@ private:
 
     ID3D11Query* OcclusionQuery = nullptr;
     // 가져와서 여기에 그리기
-    ID3D11DepthStencilView* OcclusionDSV = nullptr;
 
     ID3D11DepthStencilState* OcclusionWriteZero = nullptr;
     ID3D11DepthStencilState* OcclusionWriteAlways = nullptr;
@@ -55,22 +65,34 @@ private:
 
     ID3D11Buffer* OcclusionConstantBuffer = nullptr;
     ID3D11Buffer* OcclusionObjectInfoBuffer = nullptr;
-    void RenderOccludee(UStaticMeshComponent* StaticMeshComp);
+    void RenderOccludee(UStaticMeshComponent* StaticMeshComp, ID3D11DeviceContext* Context);
     //ID3D11ShaderResourceView* DepthStencilSRV = nullptr;
     //ID3D11SamplerState* OcclusionSampler = nullptr;
 
     // Query
-    void PrepareOcclusion();
+    TArray<QueryContext> QueryContexts;
+    void PrepareOcclusion(ID3D11DeviceContext* Context);
+    ID3D11DepthStencilView* TargetDepthStencilView;
     D3D11_QUERY_DESC queryDesc;
     std::queue<ID3D11Query*> QueryPool;
-    std::queue<ID3D11Query*> Queries;
-    std::queue<UStaticMeshComponent*> QueryMeshes;
+    
+    void ExecuteQuery(
+        const ID3D11DepthStencilView* DepthStencilSRV,
+        const TArray<UStaticMeshComponent*> InComponents,
+        int Start, int End, struct QueryContext& QC);
 
-    // Async
-    TArray<UStaticMeshComponent*> DisOccludedMeshesAsync;
+    void GetResultOcclusionQuery(struct QueryContext& QC);
+
+    std::future<TArray<UStaticMeshComponent*>> FutureResult; // 비동기 결과 저장
+    //TArray<ID3D11CommandList*> CommandLists;
+    std::vector<std::future<void>> Futures;
+    int NumThreads;
+
+    //TArray<UStaticMeshComponent*> DisOccludedMeshesAsync;
     std::future<void> AsyncQuery;
     std::promise<void> Promise;
-    std::mutex Mutex;
+    std::mutex QueryMutex;
+    std::mutex ArrayMutex;
 
     bool bIsQuerying = false;
     bool bIsReady = false;
@@ -78,4 +100,9 @@ private:
     bool bIsReadyToGet = false;
     bool bIsReadyToSet = false;
     bool bIsSet = false;
+
+    // DirectX States
+private:
+    void EnableWrite(ID3D11DeviceContext* Context) const;
+    void DisableWrite(ID3D11DeviceContext* Context) const;
 };

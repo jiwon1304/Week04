@@ -39,7 +39,7 @@ void UWorld::Initialize(HWND hWnd)
     
     if (RootOctree)
     {
-        for (const auto& iter : TObjectRange<UPrimitiveComponent>())
+        for (const auto& iter : TObjectRange<UStaticMeshComponent>())
         {
             if (iter)
             {

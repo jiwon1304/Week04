@@ -48,7 +48,7 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
 
 
     // WIP : occlusion 테스트용
-    OcclusionSystem.Init(Graphics);
+    OcclusionSystem.Init(Graphics, 1);
     //D3D11_TEXTURE2D_DESC depthDesc = {};
     //depthDesc.Width = Graphics->screenWidth;
     //depthDesc.Height = Graphics->screenHeight;
@@ -1078,7 +1078,7 @@ void FRenderer::RenderBatch(
 }
 
 void FRenderer::PrepareRender()
-{
+    {
     Frustum Frustum = ActiveViewport->GetFrustum();
     FOctreeNode* Octree = World->GetOctree();
 
@@ -1090,12 +1090,22 @@ void FRenderer::PrepareRender()
         }
     }*/
 
-    TArray<UPrimitiveComponent*> Components;
+    TArray<UStaticMeshComponent*> Components;
 
     Octree->FrustumCull(Frustum, Components);
     ComponentsProxy = Components;
 
+    static bool is_first = 1;
+    if (is_first)
+    {
+        ComponentsProxyReturn = Components;
+        is_first = 0;
+    }
+    else
+    {
+        ComponentsProxyReturn = OcclusionSystem.GetResult();
 
+    }
     AActor* SelectedActor = World->GetSelectedActor();
     
     // sortmeshrougly -> queryocclusion -> disoccludedmeshes
@@ -1197,7 +1207,15 @@ void FRenderer::Render()
     GPUTime = TempTime;
     
      Graphics->DeviceContext->RSSetViewports(1, &ActiveViewport->GetD3DViewport()); // W04 - Init에서 진행 -> depthbuffer추가로 필요
-    
+     //Graphics->Prepare();
+     Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
+
+     //DeviceContext->RSSetViewports(1, &ViewportInfo); // GPU가 화면을 렌더링할 영역 설정
+
+     Graphics->DeviceContext->OMSetRenderTargets(2, Graphics->RTVs, Graphics->DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
+     Graphics->DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff); // 블렌뎅 상태 설정, 기본블렌딩 상태임
+
+     PrepareShader();
     // Graphics->ChangeRasterizer(VMI_Lit);
     
     // ChangeViewMode(ActiveViewport->GetViewMode()); // W04
@@ -1232,17 +1250,17 @@ void FRenderer::Render()
 
 
     //OcclusionSystem.Prepare();
-    ComponentsProxyReturn = OcclusionSystem.Query(Graphics->DepthStencilView, ComponentsProxy);
+    OcclusionSystem.QueryAsync(Graphics->DepthStencilView, ComponentsProxy);
 
-    //Graphics->Prepare();
-    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
+    ////Graphics->Prepare();
+    //Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // 정정 연결 방식 설정
 
-    //DeviceContext->RSSetViewports(1, &ViewportInfo); // GPU가 화면을 렌더링할 영역 설정
+    ////DeviceContext->RSSetViewports(1, &ViewportInfo); // GPU가 화면을 렌더링할 영역 설정
 
-    Graphics->DeviceContext->OMSetRenderTargets(2, Graphics->RTVs, Graphics->DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
-    Graphics->DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff); // 블렌뎅 상태 설정, 기본블렌딩 상태임
+    //Graphics->DeviceContext->OMSetRenderTargets(2, Graphics->RTVs, Graphics->DepthStencilView); // 렌더 타겟 설정(백버퍼를 가르킴)
+    //Graphics->DeviceContext->OMSetBlendState(nullptr, nullptr, 0xffffffff); // 블렌뎅 상태 설정, 기본블렌딩 상태임
 
-    PrepareShader();
+    //PrepareShader();
     ClearRenderArr();
     QueryPerformanceCounter(&TempTime);
     GPUQueryTime = static_cast<float>(TempTime.QuadPart - GPUTime.QuadPart) / static_cast<float>(Frequency.QuadPart);

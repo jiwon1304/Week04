@@ -240,7 +240,7 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
     const UActorComponent* Possible = nullptr;
     int maxIntersect = 0;
     float minDistance = FLT_MAX;
-    TArray<UPrimitiveComponent*> Components;
+    TArray<UStaticMeshComponent*> Components;
     Frustum Frustum = GetEngine().GetLevelEditor()->GetActiveViewportClient()->GetFrustum();
     FOctreeNode* Octree = GetWorld()->GetOctree();
     FMatrix ViewMatrix = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix();

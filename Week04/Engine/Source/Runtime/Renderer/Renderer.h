@@ -214,7 +214,7 @@ private:
     //ID3D11Texture2D* DepthStencilTexture = nullptr;
     //ID3D11DepthStencilView* DepthStencilView = nullptr;
     //ID3D11ShaderResourceView* DepthStencilSRV = nullptr;
-    TArray<UPrimitiveComponent*> ComponentsProxy;
+    TArray<UStaticMeshComponent*> ComponentsProxy;
     TArray<UStaticMeshComponent*> ComponentsProxyReturn;
 
 };
