@@ -77,18 +77,19 @@ PS_INPUT mainVS(uint vertexID : SV_VertexID)
     up = cross(forward, right);
 
     // 정점 변환을 위한 행렬 생성
-    float3 quadVertex = PolygonPos[vertexID].x * right + PolygonPos[vertexID].y * up;
+    float3 PolygonVertex = PolygonPos[vertexID].x * right + PolygonPos[vertexID].y * up;
 
     // 정점 변환
-    output.position = float4(quadVertex * Scale + Pos, 1.0);
+    output.position = float4(PolygonVertex * Scale + Pos, 1.0);
     output.position = mul(output.position, ViewProjection);
-    
     return output;
 }
 float4 mainPS(PS_INPUT input) : SV_Target
 {
     float depth = input.position.z / input.position.w;
-    depth -= 1.f;
-    depth = depth < 0 ? 0 : depth;
+    // 강제로 앞에 그림 -> 보수적으로 접근
+    depth -= 0.1f;
+    depth = -0.1f < depth && depth < 0.0f ? 0.1 : depth;
+    depth = 0.01f;
     return float4(depth, depth, depth, 1.0);
 }

@@ -9,7 +9,6 @@
 #include "D3D11RHI/GraphicDevice.h"
 #include <future>
 
-
 extern UINT32 NumDisOccluded;
 extern LARGE_INTEGER CPUTime;
 extern LARGE_INTEGER GPUTime;
@@ -75,10 +74,6 @@ OcclusionAsync::~OcclusionAsync()
     if (OcclusionObjectInfoBuffer) {
         OcclusionObjectInfoBuffer->Release();
         OcclusionObjectInfoBuffer = nullptr;
-    }
-    if (TargetDepthStencilView) {
-        TargetDepthStencilView->Release();
-        TargetDepthStencilView = nullptr;
     }
 
 }
@@ -191,113 +186,9 @@ void OcclusionAsync::End()
     for (auto& ContextQuery : QueryContexts)
     {
         EnableWrite(ContextQuery.Context);
-        ContextQuery.Context->ClearDepthStencilView(TargetDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+        //ContextQuery.Context->ClearDepthStencilView(TargetDepthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// 작업중
-//TArray<UStaticMeshComponent*> OcclusionAsync::Query(ID3D11DepthStencilView* DepthStencilSRV, TArray<UPrimitiveComponent*> InComponents)
-//{
-//    OcclusionDSV = DepthStencilSRV;
-//    //Prepare();
-//    PrepareOcclusion();
-//
-//    TArray<UStaticMeshComponent*> DisOccludedMeshes;
-//    FViewportCameraTransform CameraTransform = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective;
-//
-//    FVector CameraLocation = CameraTransform.GetLocation();
-//    FMatrix VP = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix() * GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetProjectionMatrix();
-//
-//    D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
-//    Graphics->DeviceContext->Map(OcclusionConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
-//    {
-//        FDepthOnlyShaderConstants* constants = static_cast<FDepthOnlyShaderConstants*>(ConstantBufferMSR.pData);
-//        constants->ViewProjection = VP;
-//        constants->CameraPos = CameraLocation;
-//    }
-//    Graphics->DeviceContext->Unmap(OcclusionConstantBuffer, 0);
-//
-//    Graphics->DeviceContext->VSSetConstantBuffers(0, 1, &OcclusionObjectInfoBuffer); // GridParameters (b1)
-//    Graphics->DeviceContext->VSSetConstantBuffers(1, 1, &OcclusionConstantBuffer);     // MatrixBuffer (b0)
-//
-//    DisableWrite();
-//
-//    for (auto& Meshes : InComponents)
-//    {
-//        if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(Meshes))
-//        {
-//            ID3D11Query* Query;
-//            if (!QueryPool.empty())
-//            {
-//                Query = QueryPool.front();
-//                QueryPool.pop();
-//            }
-//            else
-//            {
-//                HRESULT hr = Graphics->Device->CreateQuery(&queryDesc, &Query);
-//                if (FAILED(hr))
-//                {
-//                    std::cerr << "Failed to create Occlusion Query!" << std::endl;
-//                    continue;
-//                }
-//                QueryPool.push(Query);
-//            }
-//            Graphics->DeviceContext->Begin(Query);
-//            RenderOccludee(StaticMeshComp);
-//            Graphics->DeviceContext->End(Query);
-//            Queries.push(Query);
-//            QueryMeshes.push(StaticMeshComp);
-//        }
-//    }
-//
-//    while (!Queries.empty())
-//    {
-//        ID3D11Query* Query = Queries.front();
-//        UStaticMeshComponent* StaticMeshComp = QueryMeshes.front();
-//        UINT64 pixelCount = 0;
-//        while (Graphics->DeviceContext->GetData(Query, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {}
-//        if (pixelCount > 0) {
-//            DisOccludedMeshes.Add(StaticMeshComp);
-//        }
-//        Queries.pop();
-//        QueryMeshes.pop();
-//        QueryPool.push(Query);
-//    }
-//    End();
-//    NumDisOccluded = DisOccludedMeshes.Len();
-//    return DisOccludedMeshes;
-//}
 
 void OcclusionAsync::RenderOccludee(UStaticMeshComponent* StaticMeshComp, ID3D11DeviceContext* Context)
 {
@@ -310,15 +201,25 @@ void OcclusionAsync::RenderOccludee(UStaticMeshComponent* StaticMeshComp, ID3D11
     {
         FOcclusionInformation* constants = static_cast<FOcclusionInformation*>(ConstantBufferMSR.pData);
         constants->Position = ActorLocation;
-        constants->Radius = OccludeeSize;
+        constants->Radius = OccludeeSize * 1.5;
     }
     Context->Unmap(OcclusionObjectInfoBuffer, 0);
 
     Context->Draw(30, 0);
 }
 
-void OcclusionAsync::PrepareOcclusion(ID3D11DeviceContext* Context)
+void OcclusionAsync::PrepareOcclusion(ID3D11DeviceContext* Context, ID3D11DepthStencilView* TargetDepthStencilView)
 {
+    // 크기만 가져와서 rasterizer에서 사용하도록 만듦.
+    D3D11_VIEWPORT Viewport = {};
+    Viewport.TopLeftX = 0;
+    Viewport.TopLeftY = 0;
+    Viewport.Width = Graphics->screenWidth;
+    Viewport.Height = Graphics->screenHeight;
+    Viewport.MinDepth = 0.0f;
+    Viewport.MaxDepth = 1.0f;
+    Context->RSSetViewports(1, &Viewport);
+
     Context->VSSetShader(OcclusionVertexShader, nullptr, 0);
     Context->PSSetShader(OcclusionPixelShader, nullptr, 0);
     Context->IASetInputLayout(nullptr); // 쉐이더 내부에서 사용.
@@ -340,10 +241,18 @@ void OcclusionAsync::QueryAsync(
     TArray<UStaticMeshComponent*> InComponents)
 {
     Futures.clear();
+    
     int TotalComponents = InComponents.Len();
     int ChunkSize = (TotalComponents + NumThreads - 1) / NumThreads;
 
     assert(NumThreads == QueryContexts.Num());
+
+    FViewportCameraTransform CameraTransform = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective;
+
+    FVector CameraLocation = CameraTransform.GetLocation();
+    FMatrix ViewProjection = GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetViewMatrix()
+        * GEngineLoop.GetLevelEditor()->GetActiveViewportClient()->GetProjectionMatrix();
+
 
     for (int i = 0; i < NumThreads; ++i)
     {
@@ -353,7 +262,7 @@ void OcclusionAsync::QueryAsync(
 
         // read only니깐 상관없음
         Futures.push_back(std::async(std::launch::async, &OcclusionAsync::ExecuteQuery, this, 
-            InDepthStencilView, InComponents, Start, End, std::ref(QueryContexts[i])));
+            InDepthStencilView, InComponents, Start, End , ViewProjection, CameraLocation, std::ref(QueryContexts[i])));
     }
 
     // 모든 쓰레드가 drawcall을 끝낼때까지 기다림.
@@ -382,25 +291,46 @@ void OcclusionAsync::QueryAsync(
     for (auto& QC : QueryContexts)
     {
         Graphics->DeviceContext->ExecuteCommandList(QC.CommandList, true);
+        QC.CommandList->Release();
+        QC.CommandList = nullptr;
     }
 }
 
 // 실제 쓰레드별 내부에서 작동하는 함수
-void OcclusionAsync::ExecuteQuery(const ID3D11DepthStencilView* DepthStencilSRV, 
+void OcclusionAsync::ExecuteQuery(ID3D11DepthStencilView* DepthStencilSRV, 
     const TArray<UStaticMeshComponent*> InComponents, int Start, int End,
+    const FMatrix ViewProjection, const FVector CameraPos,
     struct QueryContext& QC)
 {
-    PrepareOcclusion(QC.Context);
-    //TArray<UStaticMeshComponent*> LocalDisOccludedMeshes;
+    PrepareOcclusion(QC.Context, DepthStencilSRV);
+    //TArray<UStaticMeshComponent*> LocalDisOccludedMeshes
+    QC.DisOccludedMeshes.Empty();
+    D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+    QC.Context->Map(this->OcclusionConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+    {
+        FDepthOnlyShaderConstants* constants = static_cast<FDepthOnlyShaderConstants*>(ConstantBufferMSR.pData);
+        constants->ViewProjection = ViewProjection;
+        constants->CameraPos = CameraPos;
+    }
+    QC.Context->Unmap(this->OcclusionConstantBuffer, 0);
 
     for (int i = Start; i < End; ++i)
     {
         if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(InComponents[i]))
         {
+            //if ((CameraPos).Distance(StaticMeshComp->GetWorldLocation()) < 1.f)
+            if (StaticMeshComp->bWasDrawnBefore)
+            {
+                QC.DisOccludedMeshes.Add(StaticMeshComp);
+                StaticMeshComp->bAlreadyQueued = true;
+                StaticMeshComp->bWasDrawnBefore = true;
+            }
+
+
             ID3D11Query* Query = nullptr;
             {
                 // Query Pool에서 Lock을 하면 안될거같음...
-                std::lock_guard<std::mutex> Lock(QueryMutex);
+                std::lock_guard<std::mutex> Lock(this->QueryMutex);
                 if (!QueryPool.empty())
                 {
                     Query = QueryPool.front();
@@ -439,11 +369,13 @@ TArray<UStaticMeshComponent*> OcclusionAsync::GetResult()
     {
         GetResultOcclusionQuery(QC);
         DisOccludedMeshesGlobal + QC.DisOccludedMeshes;
-        QC.Context->ClearState();
+        //QC.Context->ClearState();
     }
-    
+    NumDisOccluded = DisOccludedMeshesGlobal.Num();
+
     return DisOccludedMeshesGlobal;
 }
+
 
 // GetData는 무조건 immediateContext에서밖에 못함. Deferred에서 불가능.
 // https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-getdata
@@ -454,10 +386,23 @@ void OcclusionAsync::GetResultOcclusionQuery(struct QueryContext& QC)
         ID3D11Query* Query = QC.Queries.front();
         UStaticMeshComponent* StaticMeshComp = QC.Meshes.front();
         UINT64 pixelCount = 0;
-        while (QC.Context->GetData(Query, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {}
+        while (Graphics->DeviceContext->GetData(Query, &pixelCount, sizeof(pixelCount), 0) == S_FALSE) {}
+        // 통과할경우
         if (pixelCount > 0) {
-            QC.DisOccludedMeshes.Add(StaticMeshComp);
+            // 이미 들어가있는 항목일경우(전에 그린거) 중복을 안하고 안넣음
+            if (!StaticMeshComp->bAlreadyQueued)
+            {
+                QC.DisOccludedMeshes.Add(StaticMeshComp);
+                StaticMeshComp->bWasDrawnBefore = true;
+            }
         }
+        else
+        {
+            StaticMeshComp->bWasDrawnBefore = false;
+        }
+        // 초기화
+        StaticMeshComp->bAlreadyQueued = false;
+
         QC.Queries.pop();
         QC.Meshes.pop();
 

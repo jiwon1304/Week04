@@ -48,7 +48,7 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
 
 
     // WIP : occlusion 테스트용
-    OcclusionSystem.Init(Graphics, 1);
+    OcclusionSystem.Init(Graphics,16);
     //D3D11_TEXTURE2D_DESC depthDesc = {};
     //depthDesc.Width = Graphics->screenWidth;
     //depthDesc.Height = Graphics->screenHeight;

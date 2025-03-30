@@ -35,6 +35,8 @@ public:
     FMatrix GetWorldMatrix() const { return W04WorldMatrix; }
     void SetWorldMatrix(const FMatrix& value) { W04WorldMatrix = value; }
 
+    bool bWasDrawnBefore = true;
+    bool bAlreadyQueued = false;
 protected:
     UStaticMesh* staticMesh = nullptr;
     int selectedSubMeshIndex = -1;

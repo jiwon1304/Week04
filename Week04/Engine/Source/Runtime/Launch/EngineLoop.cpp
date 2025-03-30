@@ -148,6 +148,8 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
 void FEngineLoop::Render()
 {
     Renderer.PrepareRender(); // 이전 프레임 정보를 씀
+    GraphicDevice.SwapBuffer();
+
     GraphicDevice.Prepare(); 
     Renderer.Render();
     
@@ -224,7 +226,7 @@ void FEngineLoop::Tick()
         // Pending 처리된 오브젝트 제거
         // GUObjectArray.ProcessPendingDestroyObjects(); // W04
 
-        GraphicDevice.SwapBuffer();
+        //GraphicDevice.SwapBuffer(); // 다음 프레임 그리기 직전에 함. 엔진루프 렌더 참고
 
         if (bShouldLimitFPS)
         {

@@ -11,6 +11,7 @@
 #include <queue>
 #include <future>
 #include <thread>
+#include "Runtime/Core/Math/JungleMath.h"
 
 constexpr float OCCLUSION_Async_DISTANCE_DIV = 1.1f;  // 적절한 초기값으로 초기화
 constexpr int OCCLUSION_Async_DISTANCE_BIN_NUM = 49 + 1;  // log(1.2f)^100
@@ -66,24 +67,24 @@ private:
     ID3D11Buffer* OcclusionConstantBuffer = nullptr;
     ID3D11Buffer* OcclusionObjectInfoBuffer = nullptr;
     void RenderOccludee(UStaticMeshComponent* StaticMeshComp, ID3D11DeviceContext* Context);
-    //ID3D11ShaderResourceView* DepthStencilSRV = nullptr;
-    //ID3D11SamplerState* OcclusionSampler = nullptr;
+    void PrepareOcclusion(ID3D11DeviceContext* Context, ID3D11DepthStencilView* TargetDepthStencilView);
+
 
     // Query
     TArray<QueryContext> QueryContexts;
-    void PrepareOcclusion(ID3D11DeviceContext* Context);
-    ID3D11DepthStencilView* TargetDepthStencilView;
+    //ID3D11DepthStencilView* TargetDepthStencilView;
     D3D11_QUERY_DESC queryDesc;
     std::queue<ID3D11Query*> QueryPool;
     
     void ExecuteQuery(
-        const ID3D11DepthStencilView* DepthStencilSRV,
+        ID3D11DepthStencilView* DepthStencilSRV,
         const TArray<UStaticMeshComponent*> InComponents,
-        int Start, int End, struct QueryContext& QC);
+        int Start, int End, 
+        const FMatrix ViewProjection, const FVector CameraPos,
+        struct QueryContext& QC);
 
     void GetResultOcclusionQuery(struct QueryContext& QC);
 
-    std::future<TArray<UStaticMeshComponent*>> FutureResult; // 비동기 결과 저장
     //TArray<ID3D11CommandList*> CommandLists;
     std::vector<std::future<void>> Futures;
     int NumThreads;
