@@ -51,7 +51,7 @@ public:
     void Initialize(FGraphicsDevice* graphics);
    
     void PrepareShader() const;
-    void PrepareShaderDeferred() const;
+    void PrepareShaderDeferred(ID3D11DeviceContext* Context) const;
     
     //Render
     void RenderPrimitive(ID3D11Buffer* pBuffer, UINT numVertices) const;
@@ -95,7 +95,7 @@ public:
     void UpdateProjectionMatrix(const FMatrix& ProjectionMatrix) const;
     
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
-    void UpdateMaterialDeferred(const FObjMaterialInfo& MaterialInfo) const;
+    void UpdateMaterialDeferred(ID3D11DeviceContext* Context, const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;
     void UpdateSubMeshConstant(bool isSelected) const;

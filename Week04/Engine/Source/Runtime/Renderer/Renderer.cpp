@@ -129,14 +129,12 @@ void FRenderer::PrepareShader() const
     Graphics->DeviceContext->IASetInputLayout(InputLayout);
 }
 
-void FRenderer::PrepareShaderDeferred() const
+void FRenderer::PrepareShaderDeferred(ID3D11DeviceContext* Context) const
 {
-    for (ID3D11DeviceContext* Deferred : Graphics->DeferredContexts)
-    {
-        Deferred->VSSetShader(VertexShader, nullptr, 0);
-        Deferred->PSSetShader(PixelShader, nullptr, 0);
-        Deferred->IASetInputLayout(InputLayout);
-    }
+        Context->VSSetShader(VertexShader, nullptr, 0);
+        Context->PSSetShader(PixelShader, nullptr, 0);
+        Context->IASetInputLayout(InputLayout);
+        Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void FRenderer::ResetVertexShader() const
@@ -575,36 +573,33 @@ void FRenderer::UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const
     }
 }
 
-void FRenderer::UpdateMaterialDeferred(const FObjMaterialInfo& MaterialInfo) const
+void FRenderer::UpdateMaterialDeferred(ID3D11DeviceContext* Context, const FObjMaterialInfo& MaterialInfo) const
 {
-    for (ID3D11DeviceContext* Contexts : Graphics->DeferredContexts)
+    if (MaterialConstantBuffer)
     {
-        if (MaterialConstantBuffer)
-        {
-            D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
 
-            Contexts->Map(MaterialConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
-            {
-                FMaterialConstants* constants = static_cast<FMaterialConstants*>(ConstantBufferMSR.pData);
-                constants->DiffuseColor = MaterialInfo.Diffuse;
-            }
-            Contexts->Unmap(MaterialConstantBuffer, 0);
-        }
-
-        if (MaterialInfo.bHasTexture == true)
+        Context->Map(MaterialConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
         {
-            std::shared_ptr<FTexture> texture = FEngineLoop::ResourceManager.GetTexture(MaterialInfo.DiffuseTexturePath);
-            Contexts->PSSetShaderResources(0, 1, &texture->TextureSRV);
-            Contexts->PSSetSamplers(0, 1, &texture->SamplerState);
+            FMaterialConstants* constants = static_cast<FMaterialConstants*>(ConstantBufferMSR.pData);
+            constants->DiffuseColor = MaterialInfo.Diffuse;
         }
-        else
-        {
-            ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
-            ID3D11SamplerState* nullSampler[1] = { nullptr };
+        Context->Unmap(MaterialConstantBuffer, 0);
+    }
 
-            Contexts->PSSetShaderResources(0, 1, nullSRV);
-            Contexts->PSSetSamplers(0, 1, nullSampler);
-        }
+    if (MaterialInfo.bHasTexture == true)
+    {
+        std::shared_ptr<FTexture> texture = FEngineLoop::ResourceManager.GetTexture(MaterialInfo.DiffuseTexturePath);
+        Context->PSSetShaderResources(0, 1, &texture->TextureSRV);
+        Context->PSSetSamplers(0, 1, &texture->SamplerState);
+    }
+    else
+    {
+        ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+        ID3D11SamplerState* nullSampler[1] = { nullptr };
+
+        Context->PSSetShaderResources(0, 1, nullSRV);
+        Context->PSSetSamplers(0, 1, nullSampler);
     }
 }
 
@@ -1250,28 +1245,20 @@ void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
 
+    ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
     for (auto& [Material, DataMap] : MaterialMeshMap)
     {
         // 이번에 사용하는 머티리얼을 GPU로 전달
         UpdateMaterial(Material->GetMaterialInfo());
         for (const auto& [StaticMesh, DataArray] : DataMap)
         {
-            // 버텍스 버퍼 업데이트
-            OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
-            UINT offset = 0;
-            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
-            if (RenderData->IndexBuffer)
-            {
-                Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-            }
             // Create a vector to store threads
             std::vector<std::thread> threads;
 
             // Split the DataArray into chunks and process each chunk in a separate thread
-            size_t chunk_size = DataArray.size() / NUM_DEFERRED_CONTEXT;  // Divide by number of hardware threads
+            size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
             chunk_size = std::max(chunk_size, size_t(1));  // Ensure at least one element per chunk
 
-            ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
 
             for (size_t i = 0; i < DataArray.size(); i += chunk_size)
             {
@@ -1280,25 +1267,44 @@ void FRenderer::RenderStaticMeshes()
 
                 // Create a lambda that processes each chunk of FMeshData
                 size_t tid = i / chunk_size;
-                ID3D11CommandList* Cmd = nullptr;
-                threads.push_back(std::thread([this, &DataArray, i, end, tid, CommandList[tid]() {
+                threads.push_back(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh ,&CommandList]() {
+                    ID3D11DeviceContext* Context = Graphics->DeferredContexts[tid];
+                    PrepareShaderDeferred(Context);
+                    OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+                    UINT offset = 0;
+                    // 버텍스 버퍼 업데이트
+                    Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+                    if (RenderData->IndexBuffer)
+                    {
+                        Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    }
+
+                    Context->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+                    Context->VSSetConstantBuffers(5, 1, &ConstantBufferView);
+                    Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
+                    Context->VSSetConstantBuffers(7, 1, &GridConstantBuffer);
+                    Context->VSSetConstantBuffers(13, 1, &LinePrimitiveBuffer);
+
+                    Context->PSSetConstantBuffers(0, 1, &ConstantBuffer);
+                    Context->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
+                    Context->PSSetConstantBuffers(3, 1, &FlagBuffer);
+                    Context->PSSetConstantBuffers(7, 1, &GridConstantBuffer);
+
+                    UpdateMaterialDeferred(Context, Material->GetMaterialInfo());
+                    Context->RSSetViewports(1, &Graphics->Viewport);
+                    Context->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+
                     // Process each FMeshData in the chunk
                     for (size_t j = i; j < end; ++j)
                     {
+
                         const FMeshData& Data = DataArray[j];
                         FMatrix MVP = Data.WorldMatrix;
                         FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
-                        UpdateConstantDeferred(Graphics->DeferredContexts[tid], MVP, UUIDColor, Data.bIsSelected);
+                        UpdateConstantDeferred(Context, MVP, UUIDColor, Data.bIsSelected);
 
                         // Draw
-                        Graphics->DeferredContexts[tid]->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
-
-                        // command list에 모두 push
-                        HRESULT hr = Graphics->DeferredContexts[tid]->FinishCommandList(FALSE, &CommandList[tid]);
-                        if (FAILED(hr)) {
-                            hr = Graphics->Device->GetDeviceRemovedReason();
-                            std::cerr << "Failed to create Command List!" << std::endl;
-                        }
+                        Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
 
                     }
                 }));
@@ -1309,25 +1315,23 @@ void FRenderer::RenderStaticMeshes()
             {
                 t.join();
             }
-            for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
-            {
-                // command list에 모두 push
-                HRESULT hr = Graphics->DeferredContexts[i]->FinishCommandList(FALSE, CommandList[i]);
-                if (FAILED(hr)) {
-                    hr = Graphics->Device->GetDeviceRemovedReason();
-                    std::cerr << "Failed to create Command List!" << std::endl;
-                }
-            }
 
-            // Command list execute
-            for (auto& QC : QueryContexts)
-            {
-                Graphics->DeviceContext->ExecuteCommandList(QC.CommandList, true);
-                QC.CommandList->Release();
-                QC.CommandList = nullptr;
-            }
+
 
         }
+    }
+
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    {
+        Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
+    }
+
+    // Command list execute
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    {
+        Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
+        CommandList[i]->Release();
+        CommandList[i] = nullptr;
     }
 }
 
