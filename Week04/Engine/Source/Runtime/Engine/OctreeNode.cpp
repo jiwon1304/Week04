@@ -111,10 +111,10 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
     }
 }
 
-bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin, float& tmin, float& tmax)
+bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const
 {
-    tmin = -FLT_MAX;
-    tmax = FLT_MAX;
+    float tmin = -FLT_MAX;
+    float tmax = FLT_MAX;
     FVector RayDir = PickPosition - PickOrigin;
     float invD = 1.0f / RayDir.x;
     float t0 = (BoundBox.min.x - PickOrigin.x) * invD;
@@ -160,8 +160,7 @@ bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector
 
 void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps)
 {
-    float tmin, tmax;
-    if (!RayIntersectsOctree(PickPosition, PickOrigin, tmin, tmax))
+    if (!RayIntersectsOctree(PickPosition, PickOrigin))
         return;
     if (bIsLeaf)
     {
@@ -184,5 +183,16 @@ void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOri
 
 uint32 FOctreeNode::CountAllComponents() const
 {
-    return Components.Num();
+    uint32 Count = Components.Num();
+    if (!bIsLeaf)
+    {
+        for (int32 i = 0; i < 8; ++i)
+        {
+            if (Children[i])
+            {
+                Count += Children[i]->CountAllComponents();
+            }
+        }
+    }
+    return Count;
 }

@@ -14,7 +14,7 @@ struct FOctreeNode
 
     void FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
 
-    bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin, float& tmin, float& tmax);
+    bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const;
 
     void QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps);
 
