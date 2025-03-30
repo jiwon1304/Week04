@@ -12,7 +12,9 @@ struct FOctreeNode
 
     bool Insert(UPrimitiveComponent* Component, int32 Depth = 0);
 
-    void FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
+    void FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
+
+    void FrustumCullThreaded(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
 
     bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const;
 

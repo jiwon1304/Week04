@@ -26,6 +26,8 @@
 #include "BaseGizmos/GizmoBaseComponent.h"
 #include <thread>
 
+UINT32 MAX_NUM_THREAD = 32;
+
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
     Graphics = graphics;

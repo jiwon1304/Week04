@@ -4,6 +4,7 @@
 #include "UObject/Casts.h"
 #include "Engine/Classes/Components/PrimitiveComponent.h"
 #include "Engine/Classes/Components/StaticMeshComponent.h"
+#include <thread>
 
 FOctreeNode::FOctreeNode(FVector Min, FVector Max)
     : BoundBox(Min, Max)
@@ -83,7 +84,7 @@ bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
     return true;
 }
 
-void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
+void FOctreeNode::FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
 {
     if (!Frustum.Intersects(BoundBox))
     {
@@ -109,6 +110,46 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
             Children[i]->FrustumCull(Frustum, OutComponents);
         }
     }
+}
+
+// 물체가 너무 적음.
+void FOctreeNode::FrustumCullThreaded(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
+{
+    if (!Frustum.Intersects(BoundBox))
+    {
+        return;
+    }
+    if (bIsLeaf)
+    {
+        for (UPrimitiveComponent* Comp : Components)
+        {
+            if (Frustum.Intersects(Comp->GetWorldBoundingBox()))
+            {
+                OutComponents.Add(Comp);
+            }
+        }
+        return;
+    }
+    TArray<std::thread> threads;
+    TArray<UPrimitiveComponent*> OutComponentsThreaded[8];
+    for (int32 i = 0; i < 8; ++i)
+    {
+        if (Children[i])
+        {
+            threads.Add(std::thread(&FOctreeNode::FrustumCull, Children[i].get(), std::ref(Frustum), std::ref(OutComponentsThreaded[i])));
+        }
+    }
+
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+
+    for (int32 i = 0; i < 8; ++i)
+    {
+        OutComponents + OutComponentsThreaded[i];
+    }
+
 }
 
 bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const
