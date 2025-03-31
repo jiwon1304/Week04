@@ -29,7 +29,7 @@ PS_INPUT mainVS(VS_INPUT input)
 void mainPS(PS_INPUT input)
 {
     int2 coord = int2(input.position.xy);
-    UUIDTextureWrite[coord] = UUID; // UAV에 UUID 저장
+    UUIDTextureWrite[int2(10, 10)] = 123412; // UAV에 UUID 저장
 }
 
 ////////////////////////////////////////////////
@@ -43,7 +43,7 @@ void mainCS(uint3 DTid : SV_DispatchThreadID)
 {
     int2 pixelPos = DTid.xy;
     uint uuid = UUIDTextureRead.Load(int3(pixelPos, 0));
-
+    UUIDList[0] = 12121;
     if (uuid != 0)
     { // 배경이 아니면 리스트에 저장
         uint index;

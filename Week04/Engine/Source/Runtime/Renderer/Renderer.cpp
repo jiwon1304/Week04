@@ -1547,7 +1547,7 @@ void FRenderer::RenderBillboards()
 
 HRESULT FRenderer::CreateUAV()
 {
-    constexpr uint32 MAX_UUID_COUNT = 2 << 16; // 2^16개의 uuid만 허용. 필요하면 2^32-2까지 늘릴 수 있음.
+    constexpr uint32 MAX_UUID_COUNT = 2 << 10; // 2^16개의 uuid만 허용. 필요하면 2^32-2까지 늘릴 수 있음.
     HRESULT hr = S_OK;
     //////////////////////////////////////////
     // UAV에 사용할 Texture 생성
@@ -1590,6 +1590,7 @@ HRESULT FRenderer::CreateUAV()
     bufferDesc.StructureByteStride = sizeof(uint32);
     bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
     hr = Graphics->Device->CreateBuffer(&bufferDesc, nullptr, &UUIDListBuffer);
     if (FAILED(hr))
     {
@@ -1693,10 +1694,10 @@ void FRenderer::ReleaseUAV()
 
 void FRenderer::DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent)
 {
-    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+    //Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     PrepareRenderUUID(Graphics->DeviceContext);
     RenderUUID(InComponent, Graphics->DeviceContext);
-
+    ReadValidUUID();
 }
 
 void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
@@ -1709,9 +1710,17 @@ void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
 
     Context->RSSetViewports(1, &Graphics->Viewport);
      //Pixel Shader에 UAV 바인딩
+
+    ID3D11UnorderedAccessView* uavs[] = { UUIDTextureUAV, UUIDListUAV };
+    UINT initialCounts[] = { 0, 0 };
     Context->OMSetRenderTargetsAndUnorderedAccessViews(
-        0, nullptr, Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
-    //Context->PSSetShaderResources()
+        0, nullptr, Graphics->DepthStencilView, 1, 2, uavs, initialCounts);
+
+    //Context->OMSetRenderTargetsAndUnorderedAccessViews(
+        //0, nullptr, Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
+
+    //Graphics->DeviceContext->OMSetRenderTargetsAndUnorderedAccessViews(
+    //    1, &Graphics->RTVs[0], Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
 }
 
 void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context)
@@ -1752,26 +1761,50 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
             Context->DrawIndexed(RenderData->Indices.Num(), 0, 0);
         }
     }
+
+     //Compute Shader 실행 전에 UAV 해제
+    ID3D11UnorderedAccessView* nullUAV = nullptr;
+    Graphics->DeviceContext->OMSetRenderTargetsAndUnorderedAccessViews(0, nullptr, nullptr, 0, 1, &nullUAV, nullptr);
 }
 
 void FRenderer::ReadValidUUID()
 {
-    // Compute Shader에서 사용할 리소스 바인딩
-    Graphics->DeviceContext->CSSetShaderResources(0, 1, &UUIDTextureSRV); // t0: UUIDTextureRead
-    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDListUAV, nullptr); // u2: UUIDList
+    // UAV를 SRV로 전환
 
-    // Compute Shader 실행 (디스패치)
+    // Compute Shader에서 사용할 리소스 바인딩
+    Graphics->DeviceContext->CSSetShaderResources(0, 1, &UUIDTextureSRV);  // t0: UUIDTextureRead (읽기)
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(2, 1, &UUIDListUAV, nullptr);  // u2: UUIDList (쓰기)
+
+    // Compute Shader 실행
     Graphics->DeviceContext->CSSetShader(UUIDComputeShader, nullptr, 0);
     Graphics->DeviceContext->Dispatch(Graphics->screenWidth / 16, Graphics->screenHeight / 16, 1);  // Thread groups 크기 설정
 
     // UAV에 대한 쓰기를 완료하려면 UAV의 상태를 마무리 처리합니다.
     ID3D11UnorderedAccessView* nullUAV = nullptr;
-    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr); // UAV를 해제
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);  // UAV를 해제
 
 
-    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDTextureUAV, nullptr);
-    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDListUAV, nullptr);
-    //Graphics->De
+    // UUIDList의 내용을 읽기 위한 Map 작업
+    D3D11_MAPPED_SUBRESOURCE mappedResource;
+    HRESULT hr = Graphics->DeviceContext->Map(UUIDListBuffer, 0, D3D11_MAP_READ, 0, &mappedResource);
+    if (SUCCEEDED(hr))
+    {
+        uint32* pUUIDList = (uint32*)mappedResource.pData;
+
+        // pUUIDList[0]에는 UUID 개수가 저장되어 있고, 그 이후에는 UUID 목록이 저장됩니다.
+        uint32 uuidCount = pUUIDList[0];
+
+        // UUID 리스트를 출력하거나 필요한 작업을 수행
+        for (uint32 i = 1; i <= uuidCount; ++i)
+        {
+            uint32 uuid = pUUIDList[i];
+            // 처리할 UUID 값을 사용
+        }
+
+        Graphics->DeviceContext->Unmap(UUIDListBuffer, 0);
+    }
+
+
 }
 
 
