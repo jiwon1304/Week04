@@ -213,13 +213,14 @@ void AEditorPlayer::PickActor(const FVector& pickPosition)
     FMatrix InverseView = FMatrix::Inverse(ViewMatrix);
     FVector WorldPickPosition = InverseView.TransformPosition(pickPosition);
     FVector RayOrigin = GetEngine().GetLevelEditor()->GetActiveViewportClient()->ViewTransformPerspective.GetLocation();
+    float nearValue = GetEngine().GetLevelEditor()->GetActiveViewportClient()->nearPlane;
     Octree->QueryByRay(WorldPickPosition, RayOrigin, Components);
     for (const auto& comp : Components)
     {
         float dis = FLT_MAX;
         UStaticMeshComponent* staticMeshComp = Cast<UStaticMeshComponent>(comp);
         if (staticMeshComp->CheckRayBVHIntersection(WorldPickPosition, RayOrigin, dis))
-            if (dis < minDistance)
+            if (dis < minDistance && dis > nearValue * 1.1f)
             {
                 minDistance = dis;
                 Possible = staticMeshComp;
