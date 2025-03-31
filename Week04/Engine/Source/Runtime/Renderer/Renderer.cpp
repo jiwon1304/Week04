@@ -1405,6 +1405,7 @@ void FRenderer::Render()
 void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
+    int NumThreadsRedering = 0;
 
     ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
     for (auto& [Material, DataMap] : MaterialMeshMap)
@@ -1434,6 +1435,7 @@ void FRenderer::RenderStaticMeshes()
                     {
                     RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
                     }));
+                NumThreadsRedering++;
             }
             // Wait for all threads to finish for the current StaticMesh
             for (auto& t : threads)
@@ -1443,13 +1445,13 @@ void FRenderer::RenderStaticMeshes()
         }
     }
 
-    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    for (int i = 0; i < NumThreadsRedering; i++)
     {
         Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
     }
 
     // Command list execute
-    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    for (int i = 0; i < NumThreadsRedering; i++)
     {
         Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
         CommandList[i]->Release();
