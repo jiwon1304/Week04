@@ -336,29 +336,12 @@ struct FLoaderOBJ
                 vertex.y = RawData.Vertices[vIdx].y;
                 vertex.z = RawData.Vertices[vIdx].z;
 
-                vertex.r = 1.0f; vertex.g = 1.0f; vertex.b = 1.0f; vertex.a = 1.0f; // 기본 색상
+                vertex.r = 0.0f; vertex.g = 0.0f; vertex.b = 0.0f; vertex.a = 1.0f; // 기본 색상
 
                 if (tIdx != UINT32_MAX && tIdx < RawData.UVs.Num())
                 {
                     vertex.u = RawData.UVs[tIdx].x;
                     vertex.v = -RawData.UVs[tIdx].y;
-                }
-
-                if (nIdx != UINT32_MAX && nIdx < RawData.Normals.Num())
-                {
-                    vertex.nx = RawData.Normals[nIdx].x;
-                    vertex.ny = RawData.Normals[nIdx].y;
-                    vertex.nz = RawData.Normals[nIdx].z;
-                }
-
-                for (int32 j = 0; j < OutStaticMesh.MaterialSubsets.Num(); j++)
-                {
-                    const FMaterialSubset& subset = OutStaticMesh.MaterialSubsets[j];
-                    if ( i >= subset.IndexStart && i < subset.IndexStart + subset.IndexCount)
-                    {
-                        vertex.MaterialIndex = subset.MaterialIndex;
-                        break;
-                    }
                 }
                 
                 index = OutStaticMesh.Vertices.Num();

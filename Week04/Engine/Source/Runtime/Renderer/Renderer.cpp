@@ -73,6 +73,7 @@ void FRenderer::Release()
     ReleaseConstantBuffer();
 
     ReleaseQuad();
+    ReleaseBatch();
 }
 
 void FRenderer::CreateShader()
@@ -89,7 +90,6 @@ void FRenderer::CreateShader()
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
 
@@ -1059,7 +1059,7 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
 
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
-    
+    /*
     for (const auto& Comp : Components)
     {
         if (GizmoActor->GetComponents().Contains(Comp))
@@ -1079,10 +1079,9 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
             
             FMeshData Data;
             Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
-            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
             Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
             
-            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            for (const FMaterialSubset& subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
             {
                 UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
                 Data.SubMeshIndex = SubMeshIdx;
@@ -1093,7 +1092,48 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
             }
         }
     }
+    */
+    for (const auto& Comp : Components)
+    {
+        if (GizmoActor->GetComponents().Contains(Comp))
+        {
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
+        }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
+        else if (UStaticMeshComponent* StaticMeshComp = Cast<UStaticMeshComponent>(Comp))
+        {
+            UStaticMesh* StaticMesh = StaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+            
+            AActor* OwnerActor = StaticMeshComp->GetOwner();
+            if (!OwnerActor)
+            {
+                continue;
+            }
 
+            const bool bIsSelected = SelectedActor == OwnerActor;
+            const FMatrix WorldMatrix = StaticMeshComp->GetWorldMatrix();
+
+            const OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+            
+            for (const FMaterialSubset& SubMesh : StaticMesh->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = StaticMesh->GetMaterials()[SubMesh.MaterialIndex]->Material;
+
+                const TArray<FVertexSimple>& VertexData = RenderData->Vertices;
+                const TArray<uint32>& IndexData = RenderData->Indices;
+                
+                uint32 IndexStart = SubMesh.IndexStart;
+                uint32 IndexCount = SubMesh.IndexCount;
+                
+                // TODO:
+            }
+        }
+    }
+    
     if (SelectedActor)
     {
         ControlMode CM = World->GetEditorPlayer()->GetControlMode();
@@ -1206,8 +1246,7 @@ void FRenderer::RenderStaticMeshes()
             for (const FMeshData& Data : DataArray)
             {
                 FMatrix MVP = Data.WorldMatrix;
-                FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
-                UpdateConstant(MVP, UUIDColor, Data.bIsSelected);
+                UpdateConstant(MVP, FVector4(), Data.bIsSelected);
 
                 // Draw
                 Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
@@ -1511,5 +1550,63 @@ void FRenderer::RenderLight()
         FMatrix Model = JungleMath::CreateModelMatrix(Light->GetWorldLocation(), Light->GetWorldRotation(), {1, 1, 1});
         UPrimitiveBatch::GetInstance().AddCone(Light->GetWorldLocation(), Light->GetRadius(), 15, 140, Light->GetColor(), Model);
         UPrimitiveBatch::GetInstance().RenderOBB(Light->GetBoundingBox(), Light->GetWorldLocation(), Model);
+    }
+}
+
+void FRenderer::ResizeBatchBuffer(UMaterial* Material, uint32 VertexCnt, uint32 IndexCnt)
+{
+    if (BatchBufferSizes[Material].first >= VertexCnt && BatchBufferSizes[Material].second >= IndexCnt)
+    {
+        return;
+    }
+
+    ReleaseBatch(Material);
+
+    HRESULT hr = S_OK;
+    
+    D3D11_BUFFER_DESC BatchVertexBufferDesc = {};
+    BatchVertexBufferDesc.ByteWidth = sizeof(FVertexSimple) * VertexCnt;
+    BatchVertexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    BatchVertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    BatchVertexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    BatchVertexBufferDesc.MiscFlags = 0;
+    BatchVertexBufferDesc.StructureByteStride = 0;
+    hr = Graphics->Device->CreateBuffer(&BatchVertexBufferDesc, nullptr, &BatchBuffers[Material].first);
+    if (FAILED(hr))
+    {
+        return;
+    }
+
+    D3D11_BUFFER_DESC BatchIndexBufferDesc = {};
+    BatchIndexBufferDesc.ByteWidth = sizeof(uint32) * IndexCnt;
+    BatchIndexBufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+    BatchIndexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    BatchIndexBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    BatchIndexBufferDesc.MiscFlags = 0;
+    BatchIndexBufferDesc.StructureByteStride = 0;
+    hr = Graphics->Device->CreateBuffer(&BatchIndexBufferDesc, nullptr, &BatchBuffers[Material].second);
+    if (FAILED(hr))
+    {
+        return;
+    }
+}
+
+void FRenderer::ReleaseBatch()
+{
+    for (auto& [Key, Value] : BatchBuffers)
+    {
+        ReleaseBatch(Key);
+    }
+}
+
+void FRenderer::ReleaseBatch(UMaterial* Material)
+{
+    if (BatchBuffers[Material].first)
+    {
+        BatchBuffers[Material].first->Release();
+    }
+    if (BatchBuffers[Material].second)
+    {
+        BatchBuffers[Material].second->Release();
     }
 }

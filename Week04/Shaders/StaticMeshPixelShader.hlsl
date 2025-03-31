@@ -41,6 +41,8 @@ PS_OUTPUT mainPS(PS_INPUT input)
     {
         FinalColor += float3(0.4f, 0.4f, 0.0f); // 노란색 틴트로 하이라이트
     }
+
+    FinalColor = FinalColor + input.color;
     
     output.color = float4(FinalColor, 1.f);
     return output;

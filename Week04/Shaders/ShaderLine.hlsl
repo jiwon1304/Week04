@@ -239,7 +239,7 @@ PS_INPUT mainVS(VS_INPUT input)
     {
         // 0 ~ (GridCount-1): 그리드
         pos = ComputeGridPosition(input.instanceID, input.vertexID);
-        color = float4(0.1, 0.1, 0.1, 1.0);
+        color = float4(0.3, 0.3, 0.3, 1.0);
     }
     else if (input.instanceID < gridLineCount + axisCount)
     {

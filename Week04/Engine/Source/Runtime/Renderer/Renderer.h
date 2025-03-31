@@ -164,11 +164,9 @@ public: // line shader
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
-        uint32 SubMeshIndex;
         uint32 IndexStart;
         uint32 IndexCount;
         FMatrix WorldMatrix;
-        FVector4 EncodeUUID;
         bool bIsSelected;
     };
 
@@ -213,7 +211,7 @@ private:
     ID3D11Buffer* QuadVertexBuffer = nullptr;
     ID3D11Buffer* QuadIndexBuffer = nullptr;
 
-    FLOAT ClearColor[4] = { 0.025f, 0.025f, 0.025f, 1.0f };
+    FLOAT ClearColor[4] = { 0.15f, 0.15f, 0.15f, 1.0f };
     ID3D11Texture2D* QuadTexture = nullptr;
     ID3D11RenderTargetView* QuadRTV = nullptr;
     ID3D11ShaderResourceView* QuadTextureSRV = nullptr;
@@ -233,5 +231,22 @@ public:
     void PrepareResize();
     void OnResize(const DXGI_SWAP_CHAIN_DESC& SwapchainDesc);
 #pragma endregion quad
+#pragma region batching
+private:
+    // 머티리얼별로 구분된 <버텍스 버퍼, 인덱스 버퍼>
+    std::unordered_map<UMaterial*, std::pair<ID3D11Buffer*, ID3D11Buffer*>> BatchBuffers;
+    // 현재 <버텍스 버퍼 크기, 인덱스 버퍼 크기>
+    std::unordered_map<UMaterial*, std::pair<uint32, uint32>> BatchBufferSizes;
+    
+    // 이번 업데이트 후 버텍스 버퍼에 담겨야 할 데이터
+    std::unordered_map<UMaterial*, std::vector<FVertexSimple>> BatchVertexData;
+    // 이번 업데이트 후 인덱스 버퍼에 담겨야 할 데이터
+    std::unordered_map<UMaterial*, std::vector<uint32>> BatchIndexData;
+
+    void ResizeBatchBuffer(UMaterial* Material, uint32 VertexCnt, uint32 IndexCnt);
+
+    void ReleaseBatch();
+    void ReleaseBatch(UMaterial* Material);
+#pragma endregion batching
 };
 
