@@ -12,7 +12,8 @@ cbuffer MatrixConstants : register(b0)
     row_major matrix WorldMatrix;
     float4 UUID;
     bool isSelected;
-    float3 Pad0;
+    uint UUIDuint;
+    float2 Pad0;
 };
 
 cbuffer MaterialConstants : register(b1)

@@ -35,7 +35,7 @@ void FRenderer::Initialize(FGraphicsDevice* graphics)
     CreateConstantBuffer();
     CreateLightingBuffer();
     CreateLitUnlitBuffer();
-
+    CreateUAV();
     CreateQuad();
 
     BindBuffers();
@@ -216,7 +216,7 @@ void FRenderer::Release()
     ReleaseTextureShader();
     ReleaseLineShader();
     ReleaseConstantBuffer();
-
+    ReleaseUAV();
     ReleaseQuad();
 }
 
@@ -431,6 +431,26 @@ ID3D11Buffer* FRenderer::CreateVertexBuffer(FVertexSimple* vertices, UINT byteWi
 }
 
 ID3D11Buffer* FRenderer::CreateVertexBuffer(const TArray<FVertexSimple>& vertices, UINT byteWidth) const
+{
+    D3D11_BUFFER_DESC vertexbufferdesc = {};
+    vertexbufferdesc.ByteWidth = byteWidth;
+    vertexbufferdesc.Usage = D3D11_USAGE_IMMUTABLE; // will never be updated 
+    vertexbufferdesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+
+    D3D11_SUBRESOURCE_DATA vertexbufferSRD;
+    vertexbufferSRD.pSysMem = vertices.GetData();
+
+    ID3D11Buffer* vertexBuffer;
+
+    HRESULT hr = Graphics->Device->CreateBuffer(&vertexbufferdesc, &vertexbufferSRD, &vertexBuffer);
+    if (FAILED(hr))
+    {
+        UE_LOG(LogLevel::Warning, "VertexBuffer Creation faild");
+    }
+    return vertexBuffer;
+}
+
+ID3D11Buffer* FRenderer::CreateVertexBuffer(const TArray<FVector>& vertices, UINT byteWidth) const
 {
     D3D11_BUFFER_DESC vertexbufferdesc = {};
     vertexbufferdesc.ByteWidth = byteWidth;
@@ -1517,6 +1537,178 @@ void FRenderer::RenderBillboards()
         }
     }
     PrepareShader();
+}
+
+void FRenderer::CreateUAV()
+{
+    constexpr uint32 MAX_UUID_COUNT = 2 << 16; // 2^16개의 uuid만 허용. 필요하면 2^32-2까지 늘릴 수 있음.
+    
+    //////////////////////////////////////////
+    // UAV에 사용할 Texture 생성
+    D3D11_TEXTURE2D_DESC textureDesc = {};
+    textureDesc.Width = Graphics->screenWidth;
+    textureDesc.Height = Graphics->screenHeight;
+    textureDesc.MipLevels = 1;
+    textureDesc.ArraySize = 1;
+    textureDesc.Format = DXGI_FORMAT_R32_UINT;
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.Usage = D3D11_USAGE_DEFAULT;
+    textureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+    Graphics->Device->CreateTexture2D(&textureDesc, nullptr, &UUIDMapTexture);
+
+    // Shader Resource View (SRV) 생성
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_R32_UINT;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    Graphics->Device->CreateShaderResourceView(UUIDMapTexture, &srvDesc, &UUIDMapSRV);
+
+    // UAV 생성
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+    uavDesc.Format = DXGI_FORMAT_R32_UINT;
+    uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+    Graphics->Device->CreateUnorderedAccessView(UUIDMapTexture, &uavDesc, &UUIDMapUAV);
+
+    //////////////////////////////////////////
+    // UUID 결과 저장용 Structured Buffer 생성
+    D3D11_BUFFER_DESC bufferDesc = {};
+    bufferDesc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+    bufferDesc.ByteWidth = sizeof(uint32) * (MAX_UUID_COUNT + 1);
+    bufferDesc.StructureByteStride = sizeof(uint32);
+    bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    bufferDesc.Usage = D3D11_USAGE_DEFAULT;
+    Graphics->Device->CreateBuffer(&bufferDesc, nullptr, &ValidUUIDBuffer);
+
+    // UAV 생성
+    D3D11_UNORDERED_ACCESS_VIEW_DESC uavBufferDesc = {};
+    uavBufferDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
+    uavBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavBufferDesc.Buffer.NumElements = MAX_UUID_COUNT + 1;
+    Graphics->Device->CreateUnorderedAccessView(ValidUUIDBuffer, &uavBufferDesc, &ValidUUIDUAV);
+
+    //////////////////////////////////////////
+    // shader 설정
+
+    ID3DBlob* VertexShaderCSO;
+    ID3DBlob* PixelShaderCSO;
+    ID3DBlob* ComputeShaderCSO;
+
+    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
+    Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &UUIDVertexShader);
+
+    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
+    Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &UUIDPixelShader);
+
+    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "MainCS", "cs_5_0", 0, 0, &ComputeShaderCSO, nullptr);
+    Graphics->Device->CreateComputeShader(ComputeShaderCSO->GetBufferPointer(), ComputeShaderCSO->GetBufferSize(), nullptr, &UUIDComputeShader);
+
+
+    D3D11_INPUT_ELEMENT_DESC layout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+    };
+
+    Graphics->Device->CreateInputLayout(
+        layout, ARRAYSIZE(layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &UUIDInputLayout
+    );
+
+    Stride = sizeof(FVector);
+
+    VertexShaderCSO->Release();
+    PixelShaderCSO->Release();
+}
+
+void FRenderer::ReleaseUAV()
+{
+    if (UUIDMapTexture)
+    {
+        UUIDMapTexture->Release();
+        UUIDMapTexture = nullptr;
+    }
+    if (UUIDMapSRV)
+    {
+        UUIDMapSRV->Release();
+        UUIDMapSRV = nullptr;
+    }
+    if (UUIDMapUAV)
+    {
+        UUIDMapUAV->Release();
+        UUIDMapUAV = nullptr;
+    }
+    if (ValidUUIDBuffer)
+    {
+        ValidUUIDBuffer->Release();
+        ValidUUIDBuffer = nullptr;
+    }
+    if (ValidUUIDUAV)
+    {
+        ValidUUIDUAV->Release();
+        ValidUUIDUAV = nullptr;
+    }
+}
+
+void FRenderer::DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent)
+{
+
+    PrepareRenderUUID(Graphics->DeviceContext);
+
+
+}
+
+void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
+{
+    Context->VSSetShader(UUIDVertexShader, nullptr, 0);
+    Context->PSSetShader(UUIDPixelShader, nullptr, 0);
+    Context->CSSetShader(UUIDComputeShader, nullptr, 0);
+    Context->IASetInputLayout(UUIDInputLayout);
+    Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    Context->RSSetViewports(1, &Graphics->Viewport);
+    // Pixel Shader에 UAV 바인딩
+    Context->OMSetRenderTargetsAndUnorderedAccessViews(
+        0, nullptr, Graphics->DepthStencilView, 0, D3D11_KEEP_UNORDERED_ACCESS_VIEWS, &UUIDMapUAV, 0);
+}
+
+void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context)
+{
+    Graphics->DeviceContext->IASetInputLayout(UUIDInputLayout);
+    uint32 Stride = sizeof(FVector);
+    uint32 Offset = 0;
+
+    for (UPrimitiveComponent* PrimComp : InComponent)
+    {
+        if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(PrimComp))
+        {
+            OBJ::FStaticMeshRenderData* RenderData = MeshComp->GetStaticMesh()->GetRenderData();
+            Context->IASetVertexBuffers(0, 1, &RenderData->VertexBufferPosOnly, &Stride, &Offset);
+            if (RenderData->IndexBuffer)
+                Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+
+            Context->VSSetConstantBuffers(0, 1, &ConstantBuffer); // worldmatrix
+            Context->PSSetConstantBuffers(0, 1, &ConstantBuffer); // uuid
+            // 이제 viewport tick에서 해주고있음. RenderStaticMeshesThread도 수정해야함
+            //Context->VSSetConstantBuffers(5, 1, &ConstantBufferView); // viewmatrix
+            //Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection); // projmatrix
+
+            if (ConstantBuffer)
+            {
+                D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR; // GPU�� �޸� �ּ� ����
+
+                Context->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+                {
+                    FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
+                    constants->WorldMatrix = MeshComp->GetWorldMatrix();
+                    constants->UUIDuint = MeshComp->GetUUID(); // float로 인코딩 안함. 바로 compute shader에 넣음
+                }
+                Context->Unmap(ConstantBuffer, 0);
+            }
+            Context->DrawIndexed(RenderData->Indices.Num(), 0, 0);
+        }
+    }
+}
+
+void FRenderer::ReadValidUUID()
+{
+    //Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &ValidUUIDUAV, nullptr);
 }
 
 

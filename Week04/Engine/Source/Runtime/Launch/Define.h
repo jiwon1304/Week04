@@ -120,6 +120,7 @@ namespace OBJ
         TArray<UINT> Indices;
 
         ID3D11Buffer* VertexBuffer;
+        ID3D11Buffer* VertexBufferPosOnly;
         ID3D11Buffer* IndexBuffer;
         
         TArray<FObjMaterialInfo> Materials;
@@ -127,6 +128,7 @@ namespace OBJ
 
         FVector BoundingBoxMin;
         FVector BoundingBoxMax;
+
     };
 }
 
@@ -334,11 +336,13 @@ struct FMaterialConstants {
     float MaterialPad0;
 };
 
+// alignas필요
 struct FConstants {
     FMatrix WorldMatrix;
     FVector4 UUIDColor;
     bool IsSelected;
-    FVector pad;
+    uint32 UUIDuint;
+    FVector2D pad;
 };
 
 struct FConstantsView {

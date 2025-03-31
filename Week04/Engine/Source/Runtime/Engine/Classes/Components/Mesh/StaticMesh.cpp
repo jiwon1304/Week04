@@ -54,6 +54,14 @@ void UStaticMesh::SetData(OBJ::FStaticMeshRenderData* renderData)
     if (verticeNum <= 0) return;
     staticMeshRenderData->VertexBuffer = GetEngine().Renderer.CreateVertexBuffer(staticMeshRenderData->Vertices, verticeNum * sizeof(FVertexSimple));
 
+    // Compute Shader를 위해서 vertex only data를 만듦
+    TArray<FVector> PositionOnly; 
+    for (FVertexSimple& PCT : staticMeshRenderData->Vertices)
+    {
+        PositionOnly.Add(FVector(PCT.x, PCT.y, PCT.z));
+    }
+    staticMeshRenderData->VertexBufferPosOnly = GetEngine().Renderer.CreateVertexBuffer(PositionOnly, verticeNum * sizeof(FVector));
+
     uint32 indexNum = staticMeshRenderData->Indices.Num();
     if (indexNum > 0)
         staticMeshRenderData->IndexBuffer = GetEngine().Renderer.CreateIndexBuffer(staticMeshRenderData->Indices, indexNum * sizeof(uint32));
