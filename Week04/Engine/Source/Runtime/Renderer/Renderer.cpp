@@ -1421,54 +1421,35 @@ void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
 
-    ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
     for (auto& [Material, DataMap] : MaterialMeshMap)
     {
         // 이번에 사용하는 머티리얼을 GPU로 전달
         UpdateMaterial(Material->GetMaterialInfo());
         for (const auto& [StaticMesh, DataArray] : DataMap)
         {
-            // Create a vector to store threads
-            TArray<std::thread> threads;
-
-            // Split the DataArray into chunks and process each chunk in a separate thread
-            size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
-            
-            if (chunk_size < 512)
+            // 버텍스 버퍼 업데이트
+            uint8 PrevLOD = 5;
+            for (const FMeshData& Data : DataArray)
             {
-                chunk_size = DataArray.size();
-            }
-            for (size_t i = 0; i < DataArray.size(); i += chunk_size)
-            {
-                // Calculate the end index of the chunk
-                size_t end = std::min(i + chunk_size, DataArray.size());
-
-                // Create a lambda that processes each chunk of FMeshData
-                size_t tid = i / chunk_size;
-                threads.Add(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh, &CommandList]()
+                uint8 LOD = Data.LOD;
+                if (PrevLOD != LOD)
+                {
+                    PrevLOD = LOD;
+                    OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData(LOD);
+                    UINT offset = 0;
+                    Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+                    if (RenderData->IndexBuffer)
                     {
-                    RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
-                    }));
-            }
-            // Wait for all threads to finish for the current StaticMesh
-            for (auto& t : threads)
-            {
-                t.join();
+                        Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                    }
+                }
+                FMatrix WorldMatrix = Data.WorldMatrix;
+                UpdateConstant(WorldMatrix, FVector4(), Data.bIsSelected);
+
+                // Draw
+                Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
             }
         }
-    }
-
-    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
-    {
-        Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
-    }
-
-    // Command list execute
-    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
-    {
-        Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
-        CommandList[i]->Release();
-        CommandList[i] = nullptr;
     }
 }
 
