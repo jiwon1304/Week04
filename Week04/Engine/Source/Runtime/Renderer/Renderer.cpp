@@ -124,7 +124,7 @@ void FRenderer::SortByMaterial(TArray<UPrimitiveComponent*> PrimComps)
 {
     //uint32 NumThreads = std::thread::hardware_concurrency() * 2; // big-little구조에선 잘 작동안함.
     //if (NumThreads == 0) NumThreads = 8;
-    uint32 NumThreads = 16; 
+    uint32 NumThreads = 8; 
 
     TArray <std::future< 
         std::unordered_map<UMaterial*,
@@ -135,7 +135,6 @@ void FRenderer::SortByMaterial(TArray<UPrimitiveComponent*> PrimComps)
     if (PrimComps.Num() < 128) ChunkSize = PrimComps.Num();
     else if (PrimComps.Num() < 256) ChunkSize = PrimComps.Num()/2;
     else if (PrimComps.Num() < 512) ChunkSize = PrimComps.Num()/4;
-    else if (PrimComps.Num() < 1024) ChunkSize = PrimComps.Num()/8;
     for (int i = 0; i < NumThreads; ++i)
     {
         int Start = i * ChunkSize;
