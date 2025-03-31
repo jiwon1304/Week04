@@ -176,16 +176,13 @@ private:
     void DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent);
     void PrepareRenderUUID(ID3D11DeviceContext* Context);
     void RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context);
-    TArray<UINT> ReadValidUUID();
+    TArray<UPrimitiveComponent*> ReadValidUUID();
     ID3D11VertexShader* UUIDVertexShader = nullptr;
     ID3D11PixelShader* UUIDPixelShader = nullptr;
-    ID3D11ComputeShader* UUIDComputeShader = nullptr;
     ID3D11InputLayout* UUIDInputLayout = nullptr;
     ID3D11Texture2D* UUIDMapTexture = nullptr; // uuid를 그릴 버퍼
-    ID3D11ShaderResourceView* UUIDTextureSRV = nullptr; // pixel shader에서 버퍼를 읽을 때 사용
-    ID3D11UnorderedAccessView* UUIDTextureUAV = nullptr; // compute shader에서 버퍼를 읽을때 사용
-    ID3D11Buffer* UUIDListBuffer = nullptr; // compute shader에서 나온 중복없는 UUID 리스트
-    ID3D11UnorderedAccessView* UUIDListUAV = nullptr; // UUID 리스트를 접근하기 위한 view
+    ID3D11Texture2D* UUIDStagingTexture = nullptr;
+    ID3D11RenderTargetView* UUIDTextureRTV = nullptr;
 
     // world 생성시 batch용
 private:
