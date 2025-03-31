@@ -194,13 +194,11 @@ std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FRen
 
             FMeshData Data;
             Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
-            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
             Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
 
             for (const auto& subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
             {
                 UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-                Data.SubMeshIndex = SubMeshIdx;
                 Data.IndexStart = subMesh.IndexStart;
                 Data.IndexCount = subMesh.IndexCount;
                 MaterialMeshMapLocal[Material][StaticMesh].push_back(Data);
@@ -236,7 +234,6 @@ void FRenderer::CreateShader()
     D3D11_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
-        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0},
     };
 
@@ -1262,42 +1259,38 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
     
+    for (const auto& Comp : Components)
+    {
+        if (GizmoActor->GetComponents().Contains(Comp))
+        {
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
+        }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
+        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
+        {
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+            
+            int SubMeshIdx = 0;
+            
+            FMeshData Data;
+            Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
+            Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+            
+            for (const FMaterialSubset& SubMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = StaticMesh->GetMaterials()[SubMesh.MaterialIndex]->Material;
+                Data.IndexStart = SubMesh.IndexStart;
+                Data.IndexCount = SubMesh.IndexCount;
+                MaterialMeshMap[Material][StaticMesh].push_back(Data);
+                SubMeshIdx++;
+            }
+        }
+    }
     
-    SortByMaterial(Components);
-    //for (const auto& Comp : Components)
-    //{
-    //    if (GizmoActor->GetComponents().Contains(Comp))
-    //    {
-    //        // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
-    //    }
-    //    // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
-    //    else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
-    //    {
-    //        UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
-    //        if (!StaticMesh)
-    //        {
-    //            continue;
-    //        }
-    //        
-    //        int SubMeshIdx = 0;
-    //        
-    //        FMeshData Data;
-    //        Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
-    //        Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
-    //        Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
-    //        
-    //        for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-    //        {
-    //            UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-    //            Data.SubMeshIndex = SubMeshIdx;
-    //            Data.IndexStart = subMesh.IndexStart;
-    //            Data.IndexCount = subMesh.IndexCount;
-    //            MaterialMeshMap[Material][StaticMesh].push_back(Data);
-    //            SubMeshIdx++;
-    //        }
-    //    }
-    //}
-
     if (SelectedActor)
     {
         ControlMode CM = World->GetEditorPlayer()->GetControlMode();
@@ -1560,8 +1553,7 @@ void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_
 
             const FMeshData& Data = DataArray[j];
             FMatrix MVP = Data.WorldMatrix;
-            FVector4 UUIDColor = Data.EncodeUUID / 255.0f;
-            UpdateConstantDeferred(Context, MVP, UUIDColor, Data.bIsSelected);
+            UpdateConstantDeferred(Context, MVP, FVector4(), Data.bIsSelected);
 
             // Draw
             Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);

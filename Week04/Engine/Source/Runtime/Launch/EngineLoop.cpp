@@ -199,7 +199,7 @@ void FEngineLoop::Tick()
         bool bShouldUpdateRender = false;
         bShouldUpdateRender |= GWorld->Tick(ElapsedTime);
         bShouldUpdateRender |= LevelEditor->Tick(ElapsedTime);
-        if (bShouldUpdateRender || true) // 억제기
+        if (bShouldUpdateRender || bIsInhibitorEnabled)
         {
             Render(bShouldUpdateRender);
         }

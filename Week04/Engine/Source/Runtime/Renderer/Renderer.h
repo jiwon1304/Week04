@@ -174,11 +174,9 @@ private:
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
-        uint32 SubMeshIndex;
         uint32 IndexStart;
         uint32 IndexCount;
         FMatrix WorldMatrix;
-        FVector4 EncodeUUID;
         bool bIsSelected;
     };
 
@@ -235,7 +233,7 @@ private:
     ID3D11Buffer* QuadVertexBuffer = nullptr;
     ID3D11Buffer* QuadIndexBuffer = nullptr;
 
-    FLOAT ClearColor[4] = { 0.025f, 0.025f, 0.025f, 1.0f };
+    FLOAT ClearColor[4] = { 0.15f, 0.15f, 0.15f, 1.0f };
     ID3D11Texture2D* QuadTexture = nullptr;
     ID3D11RenderTargetView* QuadRTV = nullptr;
     ID3D11ShaderResourceView* QuadTextureSRV = nullptr;

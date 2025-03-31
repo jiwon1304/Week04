@@ -37,8 +37,10 @@ public:
     static uint32 TotalAllocationBytes;
     static uint32 TotalAllocationCount;
 
-
     HWND hWnd;
+
+    // 억제기
+    bool bIsInhibitorEnabled = true;
 
 private:
     UWorld* GWorld;
