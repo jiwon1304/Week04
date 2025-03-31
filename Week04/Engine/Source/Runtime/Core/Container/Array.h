@@ -34,6 +34,8 @@ public:
     TArray();
     ~TArray() = default;
 
+    TArray(std::vector<T> InVector);
+
     // 이니셜라이저 생성자
     TArray(std::initializer_list<T> InitList);
 
@@ -140,6 +142,12 @@ void TArray<T, Allocator>::operator+=(const TArray& OtherArray)
 template <typename T, typename Allocator>
 TArray<T, Allocator>::TArray()
     : ContainerPrivate()
+{
+}
+
+template <typename T, typename Allocator>
+TArray<T, Allocator>::TArray(std::vector<T> InVector)
+    : ContainerPrivate(InVector.begin(), InVector.end())
 {
 }
 

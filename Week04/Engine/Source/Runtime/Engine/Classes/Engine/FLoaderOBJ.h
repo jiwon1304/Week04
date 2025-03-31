@@ -4,6 +4,7 @@
 
 #include "Define.h"
 #include "EngineLoop.h"
+#include "QEM.h"
 #include "Container/Map.h"
 #include "HAL/PlatformType.h"
 #include "Serialization/Serializer.h"
@@ -321,12 +322,10 @@ struct FLoaderOBJ
         {
             uint32 vIdx = RawData.VertexIndices[i];
             uint32 tIdx = RawData.TextureIndices[i];
-            uint32 nIdx = RawData.NormalIndices[i];
 
             // 키 생성 (v/vt/vn 조합)
             std::string key = std::to_string(vIdx) + "/" + 
-                             std::to_string(tIdx) + "/" + 
-                             std::to_string(nIdx);
+                             std::to_string(tIdx);
 
             uint32 index;
             if (vertexMap.Find(key) == nullptr)
@@ -460,7 +459,10 @@ public:
             return nullptr;
         }
 
-        SaveStaticMeshToBinary(BinaryPath, *NewStaticMesh);
+        uint32 VertexSize = NewStaticMesh->Vertices.Num();
+        SimplifyStaticMeshRenderData(*NewStaticMesh, VertexSize * 0.5f, 1.f);
+
+        // SaveStaticMeshToBinary(BinaryPath, *NewStaticMesh);
         ObjStaticMeshMap.Add(PathFileName, NewStaticMesh);
         return NewStaticMesh;
     }
