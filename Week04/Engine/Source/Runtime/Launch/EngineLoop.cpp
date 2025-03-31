@@ -171,7 +171,7 @@ void FEngineLoop::Tick()
     LARGE_INTEGER Frequency;
     QueryPerformanceFrequency(&Frequency);
 
-    LARGE_INTEGER StartTime;
+    LARGE_INTEGER StartTime;    
     QueryPerformanceCounter(&StartTime);
     
     float ElapsedTime = 1.0;

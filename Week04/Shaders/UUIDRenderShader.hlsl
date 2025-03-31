@@ -1,7 +1,7 @@
 #include "ShaderBuffers.hlsl"
 
 // UAV 선언
-RWTexture2D<uint> UUIDTextureWrite : register(u0);
+RWTexture2D<uint> UUIDTextureWrite : register(u1);
 
 struct VS_INPUT
 {
@@ -14,7 +14,7 @@ struct PS_INPUT
 };
 
 
-PS_INPUT MainVS(VS_INPUT input)
+PS_INPUT mainVS(VS_INPUT input)
 {
     PS_INPUT output;
     output.position = float4(input.position, 1.0f);
@@ -26,19 +26,20 @@ PS_INPUT MainVS(VS_INPUT input)
 }
 
 // output color 없음. depth만 기록하고, UUID는 UUIDBuffer에 기록(이후 compute shader에서 사용)
-void MainPS(PS_INPUT input)
+void mainPS(PS_INPUT input)
 {
     int2 coord = int2(input.position.xy);
     UUIDTextureWrite[coord] = UUID; // UAV에 UUID 저장
 }
 
+////////////////////////////////////////////////
 // ComputeShader
 // UUID가 저장된 UAV를 읽고 리스트를 생성
 Texture2D<uint> UUIDTextureRead : register(t0);
-RWStructuredBuffer<uint> UUIDList : register(u1);
+RWStructuredBuffer<uint> UUIDList : register(u2);
 
 [numthreads(16, 16, 1)]
-void MainCS(uint3 DTid : SV_DispatchThreadID)
+void mainCS(uint3 DTid : SV_DispatchThreadID)
 {
     int2 pixelPos = DTid.xy;
     uint uuid = UUIDTextureRead.Load(int3(pixelPos, 0));

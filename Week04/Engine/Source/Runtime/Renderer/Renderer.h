@@ -171,7 +171,7 @@ public: // line shader
     // early uuid rendering
     // !!!!! input layout에 맞게 수정필요.
 private:
-    void CreateUAV();
+    HRESULT CreateUAV();
     void ReleaseUAV();
 
     void DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent);
@@ -183,10 +183,10 @@ private:
     ID3D11ComputeShader* UUIDComputeShader = nullptr;
     ID3D11InputLayout* UUIDInputLayout = nullptr;
     ID3D11Texture2D* UUIDMapTexture = nullptr; // uuid를 그릴 버퍼
-    ID3D11ShaderResourceView* UUIDMapSRV = nullptr; // pixel shader에서 버퍼를 읽을 때 사용
-    ID3D11UnorderedAccessView* UUIDMapUAV = nullptr; // compute shader에서 버퍼를 읽을때 사용
-    ID3D11Buffer* ValidUUIDBuffer = nullptr; // compute shader에서 나온 중복없는 UUID 리스트
-    ID3D11UnorderedAccessView* ValidUUIDUAV = nullptr; // UUID 리스트를 접근하기 위한 view
+    ID3D11ShaderResourceView* UUIDTextureSRV = nullptr; // pixel shader에서 버퍼를 읽을 때 사용
+    ID3D11UnorderedAccessView* UUIDTextureUAV = nullptr; // compute shader에서 버퍼를 읽을때 사용
+    ID3D11Buffer* UUIDListBuffer = nullptr; // compute shader에서 나온 중복없는 UUID 리스트
+    ID3D11UnorderedAccessView* UUIDListUAV = nullptr; // UUID 리스트를 접근하기 위한 view
 
     // world 생성시 batch용
 private:

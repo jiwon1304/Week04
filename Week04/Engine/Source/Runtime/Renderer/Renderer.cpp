@@ -1257,16 +1257,6 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
         return;
     }
 
-    // Setup
-    Graphics->DeviceContext->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
-    Graphics->DeviceContext->ClearRenderTargetView(QuadRTV, ClearColor);
-    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
-
-    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
-    // End Setup
-
     // 렌더할 컴포넌트를 담기 전에 배열 비움
     ClearRenderArr();
     
@@ -1279,6 +1269,19 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
     
+    DiscardByUUID(Components, Components);
+
+
+    // Setup
+    Graphics->DeviceContext->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+    Graphics->DeviceContext->ClearRenderTargetView(QuadRTV, ClearColor);
+    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    Graphics->DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    Graphics->DeviceContext->IASetInputLayout(InputLayout);
+    Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
+    // End Setup
+
     for (const auto& Comp : Components)
     {
         if (GizmoActor->GetComponents().Contains(Comp))
@@ -1414,6 +1417,7 @@ void FRenderer::RenderStaticMeshes()
         UpdateMaterial(Material->GetMaterialInfo());
         for (const auto& [StaticMesh, DataArray] : DataMap)
         {
+            if (DataArray.size() == 0) continue;
             // Create a vector to store threads
             TArray<std::thread> threads;
 
@@ -1541,10 +1545,10 @@ void FRenderer::RenderBillboards()
     PrepareShader();
 }
 
-void FRenderer::CreateUAV()
+HRESULT FRenderer::CreateUAV()
 {
     constexpr uint32 MAX_UUID_COUNT = 2 << 16; // 2^16개의 uuid만 허용. 필요하면 2^32-2까지 늘릴 수 있음.
-    
+    HRESULT hr = S_OK;
     //////////////////////////////////////////
     // UAV에 사용할 Texture 생성
     D3D11_TEXTURE2D_DESC textureDesc = {};
@@ -1563,13 +1567,20 @@ void FRenderer::CreateUAV()
     srvDesc.Format = DXGI_FORMAT_R32_UINT;
     srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MipLevels = 1;
-    Graphics->Device->CreateShaderResourceView(UUIDMapTexture, &srvDesc, &UUIDMapSRV);
-
+    hr = Graphics->Device->CreateShaderResourceView(UUIDMapTexture, &srvDesc, &UUIDTextureSRV);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
     // UAV 생성
     D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.Format = DXGI_FORMAT_R32_UINT;
     uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-    Graphics->Device->CreateUnorderedAccessView(UUIDMapTexture, &uavDesc, &UUIDMapUAV);
+    hr = Graphics->Device->CreateUnorderedAccessView(UUIDMapTexture, &uavDesc, &UUIDTextureUAV);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     //////////////////////////////////////////
     // UUID 결과 저장용 Structured Buffer 생성
@@ -1579,14 +1590,22 @@ void FRenderer::CreateUAV()
     bufferDesc.StructureByteStride = sizeof(uint32);
     bufferDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
     bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-    Graphics->Device->CreateBuffer(&bufferDesc, nullptr, &ValidUUIDBuffer);
+    hr = Graphics->Device->CreateBuffer(&bufferDesc, nullptr, &UUIDListBuffer);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     // UAV 생성
     D3D11_UNORDERED_ACCESS_VIEW_DESC uavBufferDesc = {};
     uavBufferDesc.ViewDimension = D3D11_UAV_DIMENSION_BUFFER;
     uavBufferDesc.Format = DXGI_FORMAT_UNKNOWN;
     uavBufferDesc.Buffer.NumElements = MAX_UUID_COUNT + 1;
-    Graphics->Device->CreateUnorderedAccessView(ValidUUIDBuffer, &uavBufferDesc, &ValidUUIDUAV);
+    hr = Graphics->Device->CreateUnorderedAccessView(UUIDListBuffer, &uavBufferDesc, &UUIDListUAV);
+    if (FAILED(hr))
+    {
+        return hr;
+    }
 
     //////////////////////////////////////////
     // shader 설정
@@ -1594,14 +1613,36 @@ void FRenderer::CreateUAV()
     ID3DBlob* VertexShaderCSO;
     ID3DBlob* PixelShaderCSO;
     ID3DBlob* ComputeShaderCSO;
+    ID3DBlob* ErrorBlob = nullptr;
 
-    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainVS", "vs_5_0", 0, 0, &VertexShaderCSO, &ErrorBlob);
+    if (FAILED(hr))
+    {
+        if (ErrorBlob) {
+            OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
+            ErrorBlob->Release();
+        }
+    }
     Graphics->Device->CreateVertexShader(VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), nullptr, &UUIDVertexShader);
 
-    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainPS", "ps_5_0", 0, 0, &PixelShaderCSO, &ErrorBlob);
+    if (FAILED(hr))
+    {
+        if (ErrorBlob) {
+            OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
+            ErrorBlob->Release();
+        }
+    }
     Graphics->Device->CreatePixelShader(PixelShaderCSO->GetBufferPointer(), PixelShaderCSO->GetBufferSize(), nullptr, &UUIDPixelShader);
 
-    D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "MainCS", "cs_5_0", 0, 0, &ComputeShaderCSO, nullptr);
+    hr = D3DCompileFromFile(L"Shaders/UUIDRenderShader.hlsl", nullptr, D3D_COMPILE_STANDARD_FILE_INCLUDE, "mainCS", "cs_5_0", 0, 0, &ComputeShaderCSO, &ErrorBlob);
+    if (FAILED(hr))
+    {
+        if (ErrorBlob) {
+            OutputDebugStringA((char*)ErrorBlob->GetBufferPointer());
+            ErrorBlob->Release();
+        }
+    }
     Graphics->Device->CreateComputeShader(ComputeShaderCSO->GetBufferPointer(), ComputeShaderCSO->GetBufferSize(), nullptr, &UUIDComputeShader);
 
 
@@ -1613,10 +1654,12 @@ void FRenderer::CreateUAV()
         layout, ARRAYSIZE(layout), VertexShaderCSO->GetBufferPointer(), VertexShaderCSO->GetBufferSize(), &UUIDInputLayout
     );
 
-    Stride = sizeof(FVector);
-
     VertexShaderCSO->Release();
     PixelShaderCSO->Release();
+    ComputeShaderCSO->Release();
+    ErrorBlob->Release();
+
+    return hr;
 }
 
 void FRenderer::ReleaseUAV()
@@ -1626,33 +1669,33 @@ void FRenderer::ReleaseUAV()
         UUIDMapTexture->Release();
         UUIDMapTexture = nullptr;
     }
-    if (UUIDMapSRV)
+    if (UUIDTextureSRV)
     {
-        UUIDMapSRV->Release();
-        UUIDMapSRV = nullptr;
+        UUIDTextureSRV->Release();
+        UUIDTextureSRV = nullptr;
     }
-    if (UUIDMapUAV)
+    if (UUIDTextureUAV)
     {
-        UUIDMapUAV->Release();
-        UUIDMapUAV = nullptr;
+        UUIDTextureUAV->Release();
+        UUIDTextureUAV = nullptr;
     }
-    if (ValidUUIDBuffer)
+    if (UUIDListBuffer)
     {
-        ValidUUIDBuffer->Release();
-        ValidUUIDBuffer = nullptr;
+        UUIDListBuffer->Release();
+        UUIDListBuffer = nullptr;
     }
-    if (ValidUUIDUAV)
+    if (UUIDListUAV)
     {
-        ValidUUIDUAV->Release();
-        ValidUUIDUAV = nullptr;
+        UUIDListUAV->Release();
+        UUIDListUAV = nullptr;
     }
 }
 
 void FRenderer::DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent)
 {
-
+    Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     PrepareRenderUUID(Graphics->DeviceContext);
-
+    RenderUUID(InComponent, Graphics->DeviceContext);
 
 }
 
@@ -1665,9 +1708,10 @@ void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
     Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     Context->RSSetViewports(1, &Graphics->Viewport);
-    // Pixel Shader에 UAV 바인딩
+     //Pixel Shader에 UAV 바인딩
     Context->OMSetRenderTargetsAndUnorderedAccessViews(
-        0, nullptr, Graphics->DepthStencilView, 0, D3D11_KEEP_UNORDERED_ACCESS_VIEWS, &UUIDMapUAV, 0);
+        0, nullptr, Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
+    //Context->PSSetShaderResources()
 }
 
 void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context)
@@ -1676,6 +1720,10 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
     uint32 Stride = sizeof(FVector);
     uint32 Offset = 0;
 
+    Context->VSSetConstantBuffers(0, 1, &ConstantBuffer); // worldmatrix
+    Context->PSSetConstantBuffers(0, 1, &ConstantBuffer); // uuid
+    
+    // Mesh별로 바꿔야함.
     for (UPrimitiveComponent* PrimComp : InComponent)
     {
         if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(PrimComp))
@@ -1685,8 +1733,6 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
             if (RenderData->IndexBuffer)
                 Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
 
-            Context->VSSetConstantBuffers(0, 1, &ConstantBuffer); // worldmatrix
-            Context->PSSetConstantBuffers(0, 1, &ConstantBuffer); // uuid
             // 이제 viewport tick에서 해주고있음. RenderStaticMeshesThread도 수정해야함
             //Context->VSSetConstantBuffers(5, 1, &ConstantBufferView); // viewmatrix
             //Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection); // projmatrix
@@ -1710,7 +1756,22 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
 
 void FRenderer::ReadValidUUID()
 {
-    //Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &ValidUUIDUAV, nullptr);
+    // Compute Shader에서 사용할 리소스 바인딩
+    Graphics->DeviceContext->CSSetShaderResources(0, 1, &UUIDTextureSRV); // t0: UUIDTextureRead
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDListUAV, nullptr); // u2: UUIDList
+
+    // Compute Shader 실행 (디스패치)
+    Graphics->DeviceContext->CSSetShader(UUIDComputeShader, nullptr, 0);
+    Graphics->DeviceContext->Dispatch(Graphics->screenWidth / 16, Graphics->screenHeight / 16, 1);  // Thread groups 크기 설정
+
+    // UAV에 대한 쓰기를 완료하려면 UAV의 상태를 마무리 처리합니다.
+    ID3D11UnorderedAccessView* nullUAV = nullptr;
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr); // UAV를 해제
+
+
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDTextureUAV, nullptr);
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &UUIDListUAV, nullptr);
+    //Graphics->De
 }
 
 
