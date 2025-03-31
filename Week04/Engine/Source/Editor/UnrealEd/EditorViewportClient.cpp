@@ -606,7 +606,7 @@ bool Frustum::Intersects(const FBoundingBox& box) const
         const Plane& Plane = planes[i];
         FVector PositiveVector = box.GetPositiveVertex(Plane.normal);
         float Dist = PositiveVector.Dot(Plane.normal) + Plane.d;
-        if (Dist < 0.45f)
+        if (Dist < 0.2f)
         {
             return false;
         }
