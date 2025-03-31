@@ -3,6 +3,7 @@
 #include "UObject/ObjectMacros.h"
 #include "Components/Material/Material.h"
 #include "Define.h"
+#include "FBVHNode.h"
 
 class UStaticMesh : public UObject
 {
@@ -16,9 +17,11 @@ public:
     void GetUsedMaterials(TArray<UMaterial*>& Out) const;
     OBJ::FStaticMeshRenderData* GetRenderData() const { return staticMeshRenderData; }
 
-    void SetData(OBJ::FStaticMeshRenderData* renderData);
+    bool CheckRayIntersect(const FVector& PickPosition, const FVector& rayOrigin, float& HitDistance) const;
 
+    void SetData(OBJ::FStaticMeshRenderData* renderData);
 private:
     OBJ::FStaticMeshRenderData* staticMeshRenderData = nullptr;
     TArray<FStaticMaterial*> materials;
+    FBVHNode* MeshBVHNode;
 };

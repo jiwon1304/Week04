@@ -40,6 +40,12 @@ void UStaticMesh::GetUsedMaterials(TArray<UMaterial*>& Out) const
     }
 }
 
+bool UStaticMesh::CheckRayIntersect(const FVector& PickPosition, const FVector& rayOrigin, float& HitDistance) const
+{
+    const FVector rayDir = PickPosition - rayOrigin;
+    return MeshBVHNode->RayIntersectsBVH(rayOrigin, rayDir.Normalize(), HitDistance);
+}
+
 void UStaticMesh::SetData(OBJ::FStaticMeshRenderData* renderData)
 {
     staticMeshRenderData = renderData;
@@ -61,4 +67,7 @@ void UStaticMesh::SetData(OBJ::FStaticMeshRenderData* renderData)
 
         materials.Add(newMaterialSlot);
     }
+
+    MeshBVHNode = new FBVHNode(staticMeshRenderData->BoundingBoxMin, staticMeshRenderData->BoundingBoxMax);
+    MeshBVHNode->CreateVertexBVH(renderData->Vertices, 0, 5);
 }

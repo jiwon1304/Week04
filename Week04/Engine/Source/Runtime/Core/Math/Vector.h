@@ -141,6 +141,22 @@ struct FVector
         return DirectX::XMFLOAT3(x, y, z);
     }
 
+    // 점과 레이 사이의 최단 거리 계산 함수
+    float DistanceFromPointToRay(const FVector& RayOrigin, const FVector& RayDirection) const
+    {
+        FVector v = *this - RayOrigin;
+        FVector dir = RayDirection.Normalize();
+    
+        // 점을 레이에 투영
+        float t = v.Dot(dir);
+    
+        // 레이 위의 가장 가까운 점
+        FVector closestPoint = RayOrigin + dir * t;
+    
+        // 거리 계산
+        return this->Distance(closestPoint);
+    }
+
     static const FVector ZeroVector;
     static const FVector OneVector;
     static const FVector UpVector;

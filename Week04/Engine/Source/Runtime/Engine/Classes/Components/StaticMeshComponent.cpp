@@ -140,3 +140,11 @@ int UStaticMeshComponent::CheckRayIntersection(FVector& rayOrigin, FVector& rayD
     }
     return nIntersections;
 }
+
+bool UStaticMeshComponent::CheckRayBVHIntersection(const FVector& PickPosition, const FVector& PickOrigin, float& HitDistance)
+{
+    const FVector pickPos = PickPosition - GetWorldLocation();
+    const FVector originPos = PickOrigin - GetWorldLocation();
+
+    return staticMesh->CheckRayIntersect(pickPos,originPos,HitDistance);
+}
