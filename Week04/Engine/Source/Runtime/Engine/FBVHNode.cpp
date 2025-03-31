@@ -11,7 +11,7 @@ FBVHNode::FBVHNode(FVector Min, FVector Max)
 void FBVHNode::CreateVertexBVH(const TArray<FVertexSimple>& vertices, int depth, int maxDepth)
 {
     // 적은 수의 정점에서는 더 분할할 필요가 없음
-    if (depth > maxDepth || vertices.Num() <= 10) 
+    if (depth > maxDepth || vertices.Num() <= 5)
     {
         // 리프 노드에 정점 저장
         Vertices = vertices;

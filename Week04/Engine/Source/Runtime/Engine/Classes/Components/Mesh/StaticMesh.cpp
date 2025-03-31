@@ -69,5 +69,5 @@ void UStaticMesh::SetData(OBJ::FStaticMeshRenderData* renderData)
     }
 
     MeshBVHNode = new FBVHNode(staticMeshRenderData->BoundingBoxMin, staticMeshRenderData->BoundingBoxMax);
-    MeshBVHNode->CreateVertexBVH(renderData->Vertices, 0, 5);
+    MeshBVHNode->CreateVertexBVH(renderData->Vertices, 0, 20);
 }
