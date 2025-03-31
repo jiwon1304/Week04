@@ -21,6 +21,9 @@ class FEditorViewportClient;
 class UBillboardComponent;
 class UStaticMeshComponent;
 class UGizmoBaseComponent;
+class UPrimitiveComponent;
+class FOctreeNode;
+
 class FRenderer 
 {
 
@@ -164,6 +167,9 @@ public: // line shader
     void RenderLight();
     void RenderBillboards();
 
+    // world 생성시 batch용
+private:
+    TArray<TArray<UStaticMeshComponent*>> AggregateMeshComponents(FOctreeNode* Octree, uint32 MaxAggregateNum);
 
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
@@ -181,6 +187,10 @@ private:
      * Value: 해당 머티리얼을 사용하는 서브메시의 배열
      */
     std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FMeshData>>> MaterialMeshMap; 
+    void SortByMaterial(TArray<UPrimitiveComponent*> PrimComps);
+    std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>>
+        SortByMaterialThread(TArray<UPrimitiveComponent*>& PrimComps,
+        uint32 start, uint32 end);
 
     TArray<UGizmoBaseComponent*> GizmoObjs;
     TArray<UBillboardComponent*> BillboardObjs;

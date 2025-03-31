@@ -147,7 +147,7 @@ void FOctreeNode::FrustumCullThreaded(const Frustum& Frustum, TArray<UPrimitiveC
 
     for (int32 i = 0; i < 8; ++i)
     {
-        OutComponents + OutComponentsThreaded[i];
+        OutComponents += OutComponentsThreaded[i];
     }
 
 }

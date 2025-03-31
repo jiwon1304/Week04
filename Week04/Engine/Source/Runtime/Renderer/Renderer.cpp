@@ -24,9 +24,7 @@
 #include "BaseGizmos/TransformGizmo.h"
 #include "UObject/UObjectIterator.h"
 #include "BaseGizmos/GizmoBaseComponent.h"
-#include <thread>
-
-UINT32 MAX_NUM_THREAD = 32;
+#include <future>
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -66,6 +64,153 @@ void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewp
 void FRenderer::SetWorld(UWorld* InWorld)
 {
     World = InWorld;
+
+    // Octree별로 bake
+    FOctreeNode* WorldOctree = World->GetOctree();
+    constexpr UINT32 MaxBatchNum = 64;
+
+    //TArray<TArray<UStaticMeshComponent*>> Batches = AggregateComponents(WorldOctree, MaxBatchNum);
+
+}
+
+TArray<TArray<UStaticMeshComponent*>> FRenderer::AggregateMeshComponents(FOctreeNode* Octree, uint32 MaxAggregateNum = 64)
+{
+    return TArray<TArray<UStaticMeshComponent*>>();
+    //if (Octree->CountAllComponents() <= MaxAggregateNum)
+    //{
+    //    TArray<TArray<UStaticMeshComponent*>> SortedByMesh;
+    //    for (UPrimitiveComponent* Comp : Octree->Components)
+    //    {
+    //        if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Comp))
+    //        {
+    //            if (SortedByMesh.Num() == 0) // 첫번째는 무조건 넣기
+    //            {
+    //                SortedByMesh.Add({ MeshComp });
+    //            }
+    //            else // 두번째 이후로는 비교하면서 넣기
+    //            {
+    //                bool bIsSameMaterialExist = false;
+    //                for (TArray<UStaticMeshComponent*> Materials : SortedByMesh)
+    //                {
+    //                    if(Materials[0]->GetStaticMesh()->GetMaterials()-> )
+    //                }
+    //            }
+    //        }
+
+
+    //    }
+
+    //    return TArray<TArray<UStaticMeshComponent*>>();
+    //}
+    //else
+    //{
+    //    TArray<TArray<UStaticMeshComponent*>> Batches;
+    //    for (auto& SubOctree : Octree->Children)
+    //    {
+    //        if (SubOctree)
+    //        {
+    //            TArray<TArray<UStaticMeshComponent*>> SubBatches = AggregateMeshComponents(SubOctree.get(), MaxAggregateNum);
+    //            for (auto Batch : Batches)
+    //            {
+    //                Batches += SubBatches;
+    //            }
+    //        }
+    //    }
+    //    return Batches;
+    //}
+}
+
+void FRenderer::SortByMaterial(TArray<UPrimitiveComponent*> PrimComps)
+{
+    //uint32 NumThreads = std::thread::hardware_concurrency() * 2; // big-little구조에선 잘 작동안함.
+    //if (NumThreads == 0) NumThreads = 8;
+    uint32 NumThreads = 16; 
+
+    TArray <std::future< 
+        std::unordered_map<UMaterial*,
+        std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>
+        >>>Futures;
+
+    int ChunkSize = PrimComps.Num() / (NumThreads - 1);
+    if (PrimComps.Num() < 128) ChunkSize = PrimComps.Num();
+    else if (PrimComps.Num() < 256) ChunkSize = PrimComps.Num()/2;
+    else if (PrimComps.Num() < 512) ChunkSize = PrimComps.Num()/4;
+    else if (PrimComps.Num() < 1024) ChunkSize = PrimComps.Num()/8;
+    for (int i = 0; i < NumThreads; ++i)
+    {
+        int Start = i * ChunkSize;
+        int End = FMath::Min((i + 1) * ChunkSize, PrimComps.Num());
+        if (Start >= End) break;
+
+        // read only니깐 상관없음
+        Futures.Add(std::async(std::launch::async, &FRenderer::SortByMaterialThread, this,
+            std::ref(PrimComps), Start, End));
+    }
+
+    // 모든 future 결과를 기다리기
+    for (auto& Future : Futures)
+    {
+        auto ChunkResult = Future.get(); // 결과 받아오기
+
+        // 반환된 ChunkResult를 기존 MaterialMeshMap에 병합
+        for (auto& [Material, DataMap] : ChunkResult)
+        {
+            for (auto& [StaticMesh, DataArray] : DataMap)
+            {
+                // MaterialMeshMap에 이미 존재하는 키들에 데이터를 덧붙이기
+                MaterialMeshMap[Material][StaticMesh].insert(
+                    MaterialMeshMap[Material][StaticMesh].end(),
+                    DataArray.begin(),
+                    DataArray.end()
+                );
+            }
+        }
+    }
+
+}
+
+std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>> 
+    FRenderer::SortByMaterialThread(TArray<UPrimitiveComponent*>& PrimComps, uint32 start, uint32 end)
+{
+    AActor* SelectedActor = World->GetSelectedActor();
+    UTransformGizmo* GizmoActor = World->LocalGizmo;
+
+    std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FMeshData>>> MaterialMeshMapLocal;
+    for(int i = start; i < end; ++i)
+    {
+        if (GizmoActor->GetComponents().Contains(PrimComps[i]))
+        {
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
+        }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
+        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(PrimComps[i]))
+        {
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+
+            int SubMeshIdx = 0;
+
+            FMeshData Data;
+            Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
+            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+            Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+
+            for (const auto& subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.SubMeshIndex = SubMeshIdx;
+                Data.IndexStart = subMesh.IndexStart;
+                Data.IndexCount = subMesh.IndexCount;
+                MaterialMeshMapLocal[Material][StaticMesh].push_back(Data);
+                SubMeshIdx++;
+            }
+        }
+    }
+
+    return MaterialMeshMapLocal;
 }
 
 void FRenderer::Release()
@@ -1118,39 +1263,41 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
     
-    for (const auto& Comp : Components)
-    {
-        if (GizmoActor->GetComponents().Contains(Comp))
-        {
-            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
-        }
-        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
-        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
-        {
-            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
-            if (!StaticMesh)
-            {
-                continue;
-            }
-            
-            int SubMeshIdx = 0;
-            
-            FMeshData Data;
-            Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
-            Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
-            Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
-            
-            for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
-            {
-                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
-                Data.SubMeshIndex = SubMeshIdx;
-                Data.IndexStart = subMesh.IndexStart;
-                Data.IndexCount = subMesh.IndexCount;
-                MaterialMeshMap[Material][StaticMesh].push_back(Data);
-                SubMeshIdx++;
-            }
-        }
-    }
+    
+    SortByMaterial(Components);
+    //for (const auto& Comp : Components)
+    //{
+    //    if (GizmoActor->GetComponents().Contains(Comp))
+    //    {
+    //        // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
+    //    }
+    //    // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
+    //    else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(Comp))
+    //    {
+    //        UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+    //        if (!StaticMesh)
+    //        {
+    //            continue;
+    //        }
+    //        
+    //        int SubMeshIdx = 0;
+    //        
+    //        FMeshData Data;
+    //        Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
+    //        Data.EncodeUUID = pStaticMeshComp->EncodeUUID();
+    //        Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+    //        
+    //        for (auto subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+    //        {
+    //            UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+    //            Data.SubMeshIndex = SubMeshIdx;
+    //            Data.IndexStart = subMesh.IndexStart;
+    //            Data.IndexCount = subMesh.IndexCount;
+    //            MaterialMeshMap[Material][StaticMesh].push_back(Data);
+    //            SubMeshIdx++;
+    //        }
+    //    }
+    //}
 
     if (SelectedActor)
     {
@@ -1255,7 +1402,7 @@ void FRenderer::RenderStaticMeshes()
         for (const auto& [StaticMesh, DataArray] : DataMap)
         {
             // Create a vector to store threads
-            std::vector<std::thread> threads;
+            TArray<std::thread> threads;
 
             // Split the DataArray into chunks and process each chunk in a separate thread
             size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
@@ -1271,7 +1418,7 @@ void FRenderer::RenderStaticMeshes()
 
                 // Create a lambda that processes each chunk of FMeshData
                 size_t tid = i / chunk_size;
-                threads.push_back(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh, &CommandList]()
+                threads.Add(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh, &CommandList]()
                     {
                     RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
                     }));
@@ -1380,7 +1527,8 @@ void FRenderer::RenderBillboards()
     PrepareShader();
 }
 
-void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_t i, size_t end, size_t tid, 
+
+void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_t i, size_t end, size_t tid,
     UMaterial* Material, const UStaticMesh* StaticMesh, 
     ID3D11CommandList* &CommandList)
 {
