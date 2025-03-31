@@ -137,6 +137,19 @@ void FEditorViewportClient::Input(float DeltaTime)
     {
         bRightMouseDown = false; // 마우스 오른쪽 버튼을 떼면 상태 초기화
     }
+
+    if (GetAsyncKeyState('P') & 0x8000)
+    {
+        if (!bP)
+        {
+            bP = true;
+            GEngineLoop.bIsInhibitorEnabled ^= true;
+        }
+    }
+    else
+    {
+        bP = false;
+    }
     
     return; // W04
 

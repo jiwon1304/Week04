@@ -187,6 +187,7 @@ private: // Input
     bool bRightMouseDown = false;
     bool bCameraMoved = false;
     bool bProjectionUpdated = false;
+    bool bP = false;;
 
 public:
     void LoadConfig(const TMap<FString, FString>& config);
