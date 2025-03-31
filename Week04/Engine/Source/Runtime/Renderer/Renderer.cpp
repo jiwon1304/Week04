@@ -1408,7 +1408,7 @@ void FRenderer::Render()
 void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
-    int NumThreadsRedering = 0;
+    //int NumThreadsRedering = 0;
 
     ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
     for (auto& [Material, DataMap] : MaterialMeshMap)
@@ -1424,10 +1424,6 @@ void FRenderer::RenderStaticMeshes()
             // Split the DataArray into chunks and process each chunk in a separate thread
             size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
             
-            if (chunk_size < 512)
-            {
-                chunk_size = DataArray.size();
-            }
             for (size_t i = 0; i < DataArray.size(); i += chunk_size)
             {
                 // Calculate the end index of the chunk
@@ -1439,7 +1435,7 @@ void FRenderer::RenderStaticMeshes()
                     {
                     RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
                     }));
-                NumThreadsRedering++;
+                //NumThreadsRedering++;
             }
             // Wait for all threads to finish for the current StaticMesh
             for (auto& t : threads)
@@ -1449,17 +1445,23 @@ void FRenderer::RenderStaticMeshes()
         }
     }
 
-    for (int i = 0; i < NumThreadsRedering; i++)
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
     {
-        Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
+        if (!CommandList[i])
+        {
+            Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
+        }
     }
 
     // Command list execute
-    for (int i = 0; i < NumThreadsRedering; i++)
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
     {
-        Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
-        CommandList[i]->Release();
-        CommandList[i] = nullptr;
+        if (!CommandList[i])
+        {
+            Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
+            CommandList[i]->Release();
+            CommandList[i] = nullptr;
+        }
     }
 }
 
@@ -1658,7 +1660,7 @@ HRESULT FRenderer::CreateUAV()
     VertexShaderCSO->Release();
     PixelShaderCSO->Release();
     ComputeShaderCSO->Release();
-    ErrorBlob->Release();
+    if(ErrorBlob) ErrorBlob->Release();
 
     return hr;
 }
@@ -1801,6 +1803,7 @@ void FRenderer::ReadValidUUID()
         for (uint32 i = 1; i <= uuidCount; ++i)
         {
             uint32 uuid = pUUIDList[i];
+
             // 처리할 UUID 값을 사용
         }
 

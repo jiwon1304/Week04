@@ -31,7 +31,7 @@ void mainPS(PS_INPUT input)
     int2 coord = int2(input.position.xy);
     //UUIDTextureWrite[float2(0, 0)] = uint(123); // UAV에 UUID 저장
     //UUIDTextureWrite[int(coord.x), int(coord.y)] = uint(1);
-    UUIDTextureWrite[int2(0,0)] = 141414;
+    UUIDTextureWrite[int2(input.position.x, input.position.y)] = UUIDuint;
 }
 
 ////////////////////////////////////////////////
@@ -43,13 +43,24 @@ RWStructuredBuffer<uint> UUIDList : register(u2);
 [numthreads(16, 16, 1)]
 void mainCS(uint3 DTid : SV_DispatchThreadID)
 {
+    return;
     int2 pixelPos = DTid.xy;
     uint uuid = UUIDTextureRead.Load(int3(pixelPos, 0));
-    UUIDList[0] = 12121;
-    if (uuid != 0)
-    { // 배경이 아니면 리스트에 저장
-        uint index;
-        InterlockedAdd(UUIDList[0], 1, index);
-        UUIDList[index + 1] = uuid;
+
+    if (uuid == 0)
+        return; // 배경이면 무시
+
+    // 1️⃣ UUID가 이미 있는지 검사
+    for (uint i = 1; i <= UUIDList[0]; i++)
+    {
+        if (UUIDList[i] == uuid)
+        {
+            return; // 이미 존재하면 추가하지 않음
+        }
     }
+
+    // 2️⃣ Atomic 연산으로 리스트에 추가
+    uint index;
+    InterlockedAdd(UUIDList[0], 1, index);
+    UUIDList[index + 1] = uuid;
 }
