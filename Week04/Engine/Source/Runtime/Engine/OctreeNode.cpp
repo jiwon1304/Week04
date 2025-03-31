@@ -37,51 +37,50 @@ void FOctreeNode::SubDivide()
     bIsLeaf = false;
 }
 
-bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
+void FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
 {
+    // 경계 상자 교차 확인
     if (!BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
     {
-        return false;
+        return;
     }
     
+    // 리프 노드가 아닌 경우, 적절한 자식 노드에만 삽입
     if (!bIsLeaf)
     {
         for (int32 i = 0; i < 8; ++i)
         {
-            if (Children[i]->Insert(Component, Depth + 1))
+            if (Children[i]->BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
             {
-                return true;
+                Children[i]->Insert(Component, Depth + 1);
             }
         }
-        Components.Add(Component);
-        return true;
+        return;
     }
     
+    // 리프 노드에 컴포넌트 추가
     Components.Add(Component);
-    if (Components.Num() > 8 && Depth < 24)
+    
+    // 분할 조건 확인
+    if (Components.Num() > 32 && Depth < 4)
     {
         SubDivide();
-        TArray<UPrimitiveComponent*> Temp = Components;
-        Components.Empty();
-
-        for (UPrimitiveComponent* Comp : Temp)
+        
+        // 기존 컴포넌트를 적절한 자식 노드에만 재분배
+        for (UPrimitiveComponent* Comp : Components)
         {
-            bool bInserted = false;
             for (int32 i = 0; i < 8; ++i)
             {
-                if (Children[i]->Insert(Comp, Depth + 1))
+                if (Children[i]->BoundBox.IntersectsAABB(Comp->GetWorldBoundingBox()))
                 {
-                    bInserted = true;
-                    break;
+                    Children[i]->Insert(Comp, Depth + 1);
                 }
             }
-            if (!bInserted)
-            {
-                Components.Add(Comp);
-            }
         }
+        
+        // 리프 노드가 아니므로 컴포넌트 목록 비우기
+        Components.Empty();
     }
-    return true;
 }
 
 void FOctreeNode::FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)

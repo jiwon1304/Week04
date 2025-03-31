@@ -10,7 +10,7 @@ struct FOctreeNode
 
     void SubDivide();
 
-    bool Insert(UPrimitiveComponent* Component, int32 Depth = 0);
+    void Insert(UPrimitiveComponent* Component, int32 Depth = 0);
 
     void FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
 
