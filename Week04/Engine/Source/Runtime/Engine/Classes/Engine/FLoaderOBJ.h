@@ -4,7 +4,6 @@
 
 #include "Define.h"
 #include "EngineLoop.h"
-#include "QEM.h"
 #include "Container/Map.h"
 #include "HAL/PlatformType.h"
 #include "Serialization/Serializer.h"
@@ -458,9 +457,6 @@ public:
             delete NewStaticMesh;
             return nullptr;
         }
-
-        uint32 VertexSize = NewStaticMesh->Vertices.Num();
-        SimplifyStaticMeshRenderData(*NewStaticMesh, VertexSize * 0.5f, 1.f);
 
         // SaveStaticMeshToBinary(BinaryPath, *NewStaticMesh);
         ObjStaticMeshMap.Add(PathFileName, NewStaticMesh);

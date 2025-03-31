@@ -174,6 +174,7 @@ private:
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
+        uint8 LOD;
         uint32 IndexStart;
         uint32 IndexCount;
         FMatrix WorldMatrix;

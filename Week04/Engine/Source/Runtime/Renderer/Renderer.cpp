@@ -1279,6 +1279,27 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
             FMeshData Data;
             Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
             Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+
+            // LOD
+            FVector CameraLocation = ActiveViewport->ViewTransformPerspective.GetLocation();
+            FVector ComponentLocation = Comp->GetWorldLocation();
+            float Dist = CameraLocation.Distance(ComponentLocation);
+            if (Dist < 10.f)
+            {
+                Data.LOD = 0;
+            }
+            else if (Dist < 20.f)
+            {
+                Data.LOD = 1;
+            }
+            else if (Dist < 30.f)
+            {
+                Data.LOD = 2;
+            }
+            else
+            {
+                Data.LOD = 3;
+            }
             
             for (const FMaterialSubset& SubMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
             {
@@ -1288,6 +1309,20 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
                 MaterialMeshMap[Material][StaticMesh].push_back(Data);
                 SubMeshIdx++;
             }
+        }
+    }
+
+    // Sort LOD
+    for (auto& [Material, DataMap] : MaterialMeshMap)
+    {
+        for (auto& [StaticMesh, DataArray] : DataMap)
+        {
+            std::sort(DataArray.begin(), DataArray.end(),
+                [](const auto& a, const auto& b)
+                {
+                    return a.LOD < b.LOD;
+                }
+            );
         }
     }
     
@@ -1527,14 +1562,6 @@ void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_
     {
         ID3D11DeviceContext* Context = Graphics->DeferredContexts[tid];
         PrepareShaderDeferred(Context);
-        OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
-        UINT offset = 0;
-        // 버텍스 버퍼 업데이트
-        Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
-        if (RenderData->IndexBuffer)
-        {
-            Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-        }
 
         Context->VSSetConstantBuffers(0, 1, &ConstantBuffer);
         Context->VSSetConstantBuffers(5, 1, &ConstantBufferView);
@@ -1547,17 +1574,31 @@ void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_
         Context->RSSetViewports(1, &Graphics->Viewport);
         Context->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
 
+        uint8 PrevLOD = -1;
+
         // Process each FMeshData in the chunk
         for (size_t j = i; j < end; ++j)
         {
-
             const FMeshData& Data = DataArray[j];
-            FMatrix MVP = Data.WorldMatrix;
-            UpdateConstantDeferred(Context, MVP, FVector4(), Data.bIsSelected);
+            const uint8 LOD = -1;
+            if (LOD != PrevLOD)
+            {
+                PrevLOD = LOD;
+                OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData(LOD);
+                UINT offset = 0;
+                // 버텍스 버퍼 업데이트
+                Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+                if (RenderData->IndexBuffer)
+                {
+                    Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+                }
+            }
+
+            FMatrix WorldMatrix = Data.WorldMatrix;
+            UpdateConstantDeferred(Context, WorldMatrix, FVector4(), Data.bIsSelected);
 
             // Draw
             Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
-
         }
     }
 }

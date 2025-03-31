@@ -1,17 +1,11 @@
 #pragma once
 
 #include <vector>
-#include <set>
-#include <map>
-#include <cmath>
-#include <algorithm>
-#include <iostream>
 
 #include "Define.h"
 
 // --- Helper Structures ---
 
-// 3D 벡터 (FVertexSimple의 포지션 계산용)
 struct Vector3
 {
     float X;
@@ -19,14 +13,12 @@ struct Vector3
     float Z;
 };
 
-// 2D 벡터 (UV 계산용)
 struct Vector2
 {
     float U;
     float V;
 };
 
-// 4x4 행렬 (쿼드릭 저장용)
 struct Matrix4
 {
     float M[4][4];
@@ -70,7 +62,6 @@ struct Matrix4
 
 // --- QEM 단순화용 내부 구조체 ---
 
-// 단순화 시 사용할 정점 (FVertexSimple + 쿼드릭, 유효 여부)
 struct FSimplifiedVertex
 {
     FVertexSimple Vertex;
@@ -80,7 +71,6 @@ struct FSimplifiedVertex
     FSimplifiedVertex() : Valid(true) {}
 };
 
-// 삼각형 (세 정점 인덱스, 유효 여부)
 struct FSimpleTriangle
 {
     int Indices[3];
@@ -92,7 +82,6 @@ struct FSimpleTriangle
     }
 };
 
-// 엣지 정보 (두 정점 인덱스, 최적 정점 및 에러)
 struct FEdge
 {
     int V1;
@@ -123,9 +112,9 @@ float ComputeEdgeError(const FSimplifiedVertex &Vertex1, const FSimplifiedVertex
 // Triangles: 삼각형 배열 (각각 3개 인덱스)
 // TargetVertexCount: 남길 목표 정점 수
 // UVWeight: UV 차이에 곱할 가중치
-void QEMSimplifySubmesh(std::vector<FSimplifiedVertex> &Vertices, std::vector<FSimpleTriangle> &Triangles, int TargetVertexCount, float UVWeight);
+void QEMSimplifySubmesh(std::vector<FSimplifiedVertex> &Vertices, std::vector<FSimpleTriangle> &Triangles, uint32 TargetVertexCount, float UVWeight);
 
 // --- 최종 함수: FStaticMeshRenderData에 QEM 단순화 적용 ---
 // GlobalTargetVertexCount: 전체 FStaticMeshRenderData.Vertices.size()에 대한 목표 개수
 // UVWeight: UV 에러에 곱할 가중치 (예: 1.0f)
-void SimplifyStaticMeshRenderData(OBJ::FStaticMeshRenderData &MeshData, int GlobalTargetVertexCount, float UVWeight);
+void SimplifyStaticMeshRenderData(OBJ::FStaticMeshRenderData &MeshData, uint32 GlobalTargetVertexCount, float UVWeight);
