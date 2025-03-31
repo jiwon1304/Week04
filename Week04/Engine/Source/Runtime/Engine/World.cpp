@@ -31,6 +31,19 @@ void UWorld::Initialize(HWND hWnd)
         }
     }
 #endif
+#ifdef _MORE_APPLES
+    FManagerOBJ::CreateStaticMesh("Assets/JungleApples/apple_mid.obj");
+    for (int i = 0; i < 100; i++) {
+        for (int j = 0; j < 100; j++) {
+            for (int k = 0; k < 50; k++) {
+                AActor* SpawnedActor = SpawnActor<AActor>();
+                UStaticMeshComponent* Mesh = SpawnedActor->AddComponent<UStaticMeshComponent>();
+                Mesh->SetStaticMesh(FManagerOBJ::GetStaticMesh(L"apple_mid.obj"));
+                SpawnedActor->SetActorLocation(FVector(i, j, k));
+            }
+        }
+    }
+#endif
     
     if (RootOctree == nullptr)
     {

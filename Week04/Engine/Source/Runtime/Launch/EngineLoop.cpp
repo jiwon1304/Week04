@@ -127,6 +127,8 @@ int32 FEngineLoop::Init(HINSTANCE hInstance)
     GWorld = new UWorld;
 #ifdef _DEBUG
     //FString JsonStr = FSceneMgr::LoadSceneFromFile("Default1.scene");
+#elif _MORE_APPLES
+    // not load
 #else
     FString JsonStr = FSceneMgr::LoadSceneFromFile("Default.scene");
     SceneData Scene = FSceneMgr::ParseSceneData(JsonStr);

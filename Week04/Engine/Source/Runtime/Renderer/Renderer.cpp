@@ -24,6 +24,7 @@
 #include "BaseGizmos/TransformGizmo.h"
 #include "UObject/UObjectIterator.h"
 #include "BaseGizmos/GizmoBaseComponent.h"
+#include <future>
 
 void FRenderer::Initialize(FGraphicsDevice* graphics)
 {
@@ -63,6 +64,150 @@ void FRenderer::SetViewport(std::shared_ptr<FEditorViewportClient> InActiveViewp
 void FRenderer::SetWorld(UWorld* InWorld)
 {
     World = InWorld;
+
+    // Octree별로 bake
+    FOctreeNode* WorldOctree = World->GetOctree();
+    constexpr UINT32 MaxBatchNum = 64;
+
+    //TArray<TArray<UStaticMeshComponent*>> Batches = AggregateComponents(WorldOctree, MaxBatchNum);
+
+}
+
+TArray<TArray<UStaticMeshComponent*>> FRenderer::AggregateMeshComponents(FOctreeNode* Octree, uint32 MaxAggregateNum = 64)
+{
+    return TArray<TArray<UStaticMeshComponent*>>();
+    //if (Octree->CountAllComponents() <= MaxAggregateNum)
+    //{
+    //    TArray<TArray<UStaticMeshComponent*>> SortedByMesh;
+    //    for (UPrimitiveComponent* Comp : Octree->Components)
+    //    {
+    //        if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Comp))
+    //        {
+    //            if (SortedByMesh.Num() == 0) // 첫번째는 무조건 넣기
+    //            {
+    //                SortedByMesh.Add({ MeshComp });
+    //            }
+    //            else // 두번째 이후로는 비교하면서 넣기
+    //            {
+    //                bool bIsSameMaterialExist = false;
+    //                for (TArray<UStaticMeshComponent*> Materials : SortedByMesh)
+    //                {
+    //                    if(Materials[0]->GetStaticMesh()->GetMaterials()-> )
+    //                }
+    //            }
+    //        }
+
+
+    //    }
+
+    //    return TArray<TArray<UStaticMeshComponent*>>();
+    //}
+    //else
+    //{
+    //    TArray<TArray<UStaticMeshComponent*>> Batches;
+    //    for (auto& SubOctree : Octree->Children)
+    //    {
+    //        if (SubOctree)
+    //        {
+    //            TArray<TArray<UStaticMeshComponent*>> SubBatches = AggregateMeshComponents(SubOctree.get(), MaxAggregateNum);
+    //            for (auto Batch : Batches)
+    //            {
+    //                Batches += SubBatches;
+    //            }
+    //        }
+    //    }
+    //    return Batches;
+    //}
+}
+
+void FRenderer::SortByMaterial(TArray<UPrimitiveComponent*> PrimComps)
+{
+    //uint32 NumThreads = std::thread::hardware_concurrency() * 2; // big-little구조에선 잘 작동안함.
+    //if (NumThreads == 0) NumThreads = 8;
+    uint32 NumThreads = 8; 
+
+    TArray <std::future< 
+        std::unordered_map<UMaterial*,
+        std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>
+        >>>Futures;
+
+    int ChunkSize = PrimComps.Num() / (NumThreads - 1);
+    if (PrimComps.Num() < 128) ChunkSize = PrimComps.Num();
+    else if (PrimComps.Num() < 256) ChunkSize = PrimComps.Num()/2;
+    else if (PrimComps.Num() < 512) ChunkSize = PrimComps.Num()/4;
+    for (int i = 0; i < NumThreads; ++i)
+    {
+        int Start = i * ChunkSize;
+        int End = FMath::Min((i + 1) * ChunkSize, PrimComps.Num());
+        if (Start >= End) break;
+
+        // read only니깐 상관없음
+        Futures.Add(std::async(std::launch::async, &FRenderer::SortByMaterialThread, this,
+            std::ref(PrimComps), Start, End));
+    }
+
+    // 모든 future 결과를 기다리기
+    for (auto& Future : Futures)
+    {
+        auto ChunkResult = Future.get(); // 결과 받아오기
+
+        // 반환된 ChunkResult를 기존 MaterialMeshMap에 병합
+        for (auto& [Material, DataMap] : ChunkResult)
+        {
+            for (auto& [StaticMesh, DataArray] : DataMap)
+            {
+                // MaterialMeshMap에 이미 존재하는 키들에 데이터를 덧붙이기
+                MaterialMeshMap[Material][StaticMesh].insert(
+                    MaterialMeshMap[Material][StaticMesh].end(),
+                    DataArray.begin(),
+                    DataArray.end()
+                );
+            }
+        }
+    }
+
+}
+
+std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>> 
+    FRenderer::SortByMaterialThread(TArray<UPrimitiveComponent*>& PrimComps, uint32 start, uint32 end)
+{
+    AActor* SelectedActor = World->GetSelectedActor();
+    UTransformGizmo* GizmoActor = World->LocalGizmo;
+
+    std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FMeshData>>> MaterialMeshMapLocal;
+    for(int i = start; i < end; ++i)
+    {
+        if (GizmoActor->GetComponents().Contains(PrimComps[i]))
+        {
+            // 기즈모는 Frustum 컬링이 적용되지 않게 따로 관리할 예정이므로 여기에서는 건너뜀.
+        }
+        // UGizmoBaseComponent가 UStaticMeshComponent를 상속받으므로, 정확히 구분하기 위함.
+        else if (UStaticMeshComponent* pStaticMeshComp = Cast<UStaticMeshComponent>(PrimComps[i]))
+        {
+            UStaticMesh* StaticMesh = pStaticMeshComp->GetStaticMesh();
+            if (!StaticMesh)
+            {
+                continue;
+            }
+
+            int SubMeshIdx = 0;
+
+            FMeshData Data;
+            Data.WorldMatrix = pStaticMeshComp->GetWorldMatrix();
+            Data.bIsSelected = SelectedActor == pStaticMeshComp->GetOwner();
+
+            for (const auto& subMesh : pStaticMeshComp->GetStaticMesh()->GetRenderData()->MaterialSubsets)
+            {
+                UMaterial* Material = pStaticMeshComp->GetStaticMesh()->GetMaterials()[0]->Material;
+                Data.IndexStart = subMesh.IndexStart;
+                Data.IndexCount = subMesh.IndexCount;
+                MaterialMeshMapLocal[Material][StaticMesh].push_back(Data);
+                SubMeshIdx++;
+            }
+        }
+    }
+
+    return MaterialMeshMapLocal;
 }
 
 void FRenderer::Release()
@@ -125,6 +270,14 @@ void FRenderer::PrepareShader() const
     Graphics->DeviceContext->VSSetShader(VertexShader, nullptr, 0);
     Graphics->DeviceContext->PSSetShader(PixelShader, nullptr, 0);
     Graphics->DeviceContext->IASetInputLayout(InputLayout);
+}
+
+void FRenderer::PrepareShaderDeferred(ID3D11DeviceContext* Context) const
+{
+        Context->VSSetShader(VertexShader, nullptr, 0);
+        Context->PSSetShader(PixelShader, nullptr, 0);
+        Context->IASetInputLayout(InputLayout);
+        Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
 
 void FRenderer::ResetVertexShader() const
@@ -486,6 +639,23 @@ void FRenderer::UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, b
     }
 }
 
+void FRenderer::UpdateConstantDeferred(ID3D11DeviceContext* Context, const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const
+{
+    if (ConstantBuffer)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR; // GPU�� �޸� �ּ� ����
+
+        Context->Map(ConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FConstants* constants = static_cast<FConstants*>(ConstantBufferMSR.pData);
+            constants->WorldMatrix = WorldMatrix;
+            constants->UUIDColor = UUIDColor;
+            constants->IsSelected = IsSelected;
+        }
+        Context->Unmap(ConstantBuffer, 0); // GPU�� �ٽ� ��밡���ϰ� �����
+    }
+}
+
 void FRenderer::UpdateViewMatrix(const FMatrix& InViewMatrix) const
 {
     if (ConstantBufferView)
@@ -543,6 +713,36 @@ void FRenderer::UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const
 
         Graphics->DeviceContext->PSSetShaderResources(0, 1, nullSRV);
         Graphics->DeviceContext->PSSetSamplers(0, 1, nullSampler);
+    }
+}
+
+void FRenderer::UpdateMaterialDeferred(ID3D11DeviceContext* Context, const FObjMaterialInfo& MaterialInfo) const
+{
+    if (MaterialConstantBuffer)
+    {
+        D3D11_MAPPED_SUBRESOURCE ConstantBufferMSR;
+
+        Context->Map(MaterialConstantBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &ConstantBufferMSR); // update constant buffer every frame
+        {
+            FMaterialConstants* constants = static_cast<FMaterialConstants*>(ConstantBufferMSR.pData);
+            constants->DiffuseColor = MaterialInfo.Diffuse;
+        }
+        Context->Unmap(MaterialConstantBuffer, 0);
+    }
+
+    if (MaterialInfo.bHasTexture == true)
+    {
+        std::shared_ptr<FTexture> texture = FEngineLoop::ResourceManager.GetTexture(MaterialInfo.DiffuseTexturePath);
+        Context->PSSetShaderResources(0, 1, &texture->TextureSRV);
+        Context->PSSetSamplers(0, 1, &texture->SamplerState);
+    }
+    else
+    {
+        ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+        ID3D11SamplerState* nullSampler[1] = { nullptr };
+
+        Context->PSSetShaderResources(0, 1, nullSRV);
+        Context->PSSetSamplers(0, 1, nullSampler);
     }
 }
 
@@ -1186,29 +1386,54 @@ void FRenderer::RenderStaticMeshes()
 {
     PrepareShader();
 
+    ID3D11CommandList* CommandList[NUM_DEFERRED_CONTEXT];
     for (auto& [Material, DataMap] : MaterialMeshMap)
     {
         // 이번에 사용하는 머티리얼을 GPU로 전달
         UpdateMaterial(Material->GetMaterialInfo());
         for (const auto& [StaticMesh, DataArray] : DataMap)
         {
-            // 버텍스 버퍼 업데이트
-            OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
-            UINT offset = 0;
-            Graphics->DeviceContext->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
-            if (RenderData->IndexBuffer)
-            {
-                Graphics->DeviceContext->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-            }
-            for (const FMeshData& Data : DataArray)
-            {
-                FMatrix MVP = Data.WorldMatrix;
-                UpdateConstant(MVP, FVector4(), Data.bIsSelected);
+            // Create a vector to store threads
+            TArray<std::thread> threads;
 
-                // Draw
-                Graphics->DeviceContext->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+            // Split the DataArray into chunks and process each chunk in a separate thread
+            size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
+            
+            if (chunk_size < 512)
+            {
+                chunk_size = DataArray.size();
+            }
+            for (size_t i = 0; i < DataArray.size(); i += chunk_size)
+            {
+                // Calculate the end index of the chunk
+                size_t end = std::min(i + chunk_size, DataArray.size());
+
+                // Create a lambda that processes each chunk of FMeshData
+                size_t tid = i / chunk_size;
+                threads.Add(std::thread([this, &DataArray, i, end, tid, Material, StaticMesh, &CommandList]()
+                    {
+                    RenderStaticMeshesThread(DataArray, i, end, tid, Material, StaticMesh, CommandList[tid]);
+                    }));
+            }
+            // Wait for all threads to finish for the current StaticMesh
+            for (auto& t : threads)
+            {
+                t.join();
             }
         }
+    }
+
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    {
+        Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
+    }
+
+    // Command list execute
+    for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
+    {
+        Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
+        CommandList[i]->Release();
+        CommandList[i] = nullptr;
     }
 }
 
@@ -1292,6 +1517,49 @@ void FRenderer::RenderBillboards()
         }
     }
     PrepareShader();
+}
+
+
+void FRenderer::RenderStaticMeshesThread(std::vector<FMeshData> DataArray, size_t i, size_t end, size_t tid,
+    UMaterial* Material, const UStaticMesh* StaticMesh, 
+    ID3D11CommandList* &CommandList)
+{
+    {
+        ID3D11DeviceContext* Context = Graphics->DeferredContexts[tid];
+        PrepareShaderDeferred(Context);
+        OBJ::FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData();
+        UINT offset = 0;
+        // 버텍스 버퍼 업데이트
+        Context->IASetVertexBuffers(0, 1, &RenderData->VertexBuffer, &Stride, &offset);
+        if (RenderData->IndexBuffer)
+        {
+            Context->IASetIndexBuffer(RenderData->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+        }
+
+        Context->VSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Context->VSSetConstantBuffers(5, 1, &ConstantBufferView);
+        Context->VSSetConstantBuffers(6, 1, &ConstantBufferProjection);
+
+        Context->PSSetConstantBuffers(0, 1, &ConstantBuffer);
+        Context->PSSetConstantBuffers(1, 1, &MaterialConstantBuffer);
+
+        UpdateMaterialDeferred(Context, Material->GetMaterialInfo());
+        Context->RSSetViewports(1, &Graphics->Viewport);
+        Context->OMSetRenderTargets(1, &QuadRTV, Graphics->DepthStencilView);
+
+        // Process each FMeshData in the chunk
+        for (size_t j = i; j < end; ++j)
+        {
+
+            const FMeshData& Data = DataArray[j];
+            FMatrix MVP = Data.WorldMatrix;
+            UpdateConstantDeferred(Context, MVP, FVector4(), Data.bIsSelected);
+
+            // Draw
+            Context->DrawIndexed(Data.IndexCount, Data.IndexStart, 0);
+
+        }
+    }
 }
 
 void FRenderer::CreateQuad()

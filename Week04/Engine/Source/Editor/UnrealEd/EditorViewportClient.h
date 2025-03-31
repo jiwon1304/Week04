@@ -95,7 +95,7 @@ struct Frustum
 
     void CreatePlaneWithMatrix(const FMatrix& ViewProjection);
 
-    bool Intersects(const FBoundingBox& box);
+    bool Intersects(const FBoundingBox& box) const;
 };
 
 class FEditorViewportClient : public FViewportClient

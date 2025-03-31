@@ -21,6 +21,9 @@ class FEditorViewportClient;
 class UBillboardComponent;
 class UStaticMeshComponent;
 class UGizmoBaseComponent;
+class UPrimitiveComponent;
+class FOctreeNode;
+
 class FRenderer 
 {
 
@@ -51,6 +54,7 @@ public:
     void Initialize(FGraphicsDevice* graphics);
    
     void PrepareShader() const;
+    void PrepareShaderDeferred(ID3D11DeviceContext* Context) const;
     
     //Render
     void RenderPrimitive(ID3D11Buffer* pBuffer, UINT numVertices) const;
@@ -88,11 +92,13 @@ public:
     // update
     void UpdateLightBuffer() const;
     void UpdateConstant(const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const;
+    void UpdateConstantDeferred(ID3D11DeviceContext* Context, const FMatrix& WorldMatrix, FVector4 UUIDColor, bool IsSelected) const;
 
     void UpdateViewMatrix(const FMatrix& ViewMatrix) const;
     void UpdateProjectionMatrix(const FMatrix& ProjectionMatrix) const;
     
     void UpdateMaterial(const FObjMaterialInfo& MaterialInfo) const;
+    void UpdateMaterialDeferred(ID3D11DeviceContext* Context, const FObjMaterialInfo& MaterialInfo) const;
     void UpdateLitUnlitConstant(int isLit) const;
     void UpdateIsGizmoConstant(int IsGizmo) const;
     void UpdateSubMeshConstant(bool isSelected) const;
@@ -161,6 +167,10 @@ public: // line shader
     void RenderLight();
     void RenderBillboards();
 
+    // world 생성시 batch용
+private:
+    TArray<TArray<UStaticMeshComponent*>> AggregateMeshComponents(FOctreeNode* Octree, uint32 MaxAggregateNum);
+
 private:
     struct FMeshData // 렌더러 내부에서만 사용하므로 여기에서 선언
     {
@@ -175,6 +185,10 @@ private:
      * Value: 해당 머티리얼을 사용하는 서브메시의 배열
      */
     std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FMeshData>>> MaterialMeshMap; 
+    void SortByMaterial(TArray<UPrimitiveComponent*> PrimComps);
+    std::unordered_map<UMaterial*, std::unordered_map<UStaticMesh*, std::vector<FRenderer::FMeshData>>>
+        SortByMaterialThread(TArray<UPrimitiveComponent*>& PrimComps,
+        uint32 start, uint32 end);
 
     TArray<UGizmoBaseComponent*> GizmoObjs;
     TArray<UBillboardComponent*> BillboardObjs;
@@ -188,6 +202,14 @@ public:
     ID3D11ShaderResourceView* pBBSRV = nullptr;
     ID3D11ShaderResourceView* pConeSRV = nullptr;
     ID3D11ShaderResourceView* pOBBSRV = nullptr;
+
+// thread
+private:
+    void RenderStaticMeshesThread(
+        std::vector<FMeshData> DataArray, 
+        size_t i, size_t end, size_t tid, 
+        UMaterial* Material, const UStaticMesh* StaticMesh,
+         ID3D11CommandList* &CommandList);
 
 #pragma region quad
 private:

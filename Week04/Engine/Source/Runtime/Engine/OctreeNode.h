@@ -10,11 +10,13 @@ struct FOctreeNode
 
     void SubDivide();
 
-    bool Insert(UPrimitiveComponent* Component, int32 Depth = 0);
+    void Insert(UPrimitiveComponent* Component, int32 Depth = 0);
 
-    void FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
+    void FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
 
-    bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin, float& tmin, float& tmax);
+    void FrustumCullThreaded(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents);
+
+    bool RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const;
 
     void QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps);
 

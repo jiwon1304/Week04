@@ -6,6 +6,7 @@
 #include "UObject/Casts.h"
 #include "Engine/Classes/Components/PrimitiveComponent.h"
 #include "Engine/Classes/Components/StaticMeshComponent.h"
+#include <thread>
 
 FOctreeNode::FOctreeNode(FVector Min, FVector Max)
     : BoundBox(Min, Max)
@@ -38,54 +39,53 @@ void FOctreeNode::SubDivide()
     bIsLeaf = false;
 }
 
-bool FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
+void FOctreeNode::Insert(UPrimitiveComponent* Component, int32 Depth)
 {
+    // 경계 상자 교차 확인
     if (!BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
     {
-        return false;
+        return;
     }
     
+    // 리프 노드가 아닌 경우, 적절한 자식 노드에만 삽입
     if (!bIsLeaf)
     {
         for (int32 i = 0; i < 8; ++i)
         {
-            if (Children[i]->Insert(Component, Depth + 1))
+            if (Children[i]->BoundBox.IntersectsAABB(Component->GetWorldBoundingBox()))
             {
-                return true;
+                Children[i]->Insert(Component, Depth + 1);
             }
         }
-        Components.Add(Component);
-        return true;
+        return;
     }
     
+    // 리프 노드에 컴포넌트 추가
     Components.Add(Component);
-    if (Components.Num() > 8 && Depth < 24)
+    
+    // 분할 조건 확인
+    if (Components.Num() > 32 && Depth < 4)
     {
         SubDivide();
-        TArray<UPrimitiveComponent*> Temp = Components;
-        Components.Empty();
-
-        for (UPrimitiveComponent* Comp : Temp)
+        
+        // 기존 컴포넌트를 적절한 자식 노드에만 재분배
+        for (UPrimitiveComponent* Comp : Components)
         {
-            bool bInserted = false;
             for (int32 i = 0; i < 8; ++i)
             {
-                if (Children[i]->Insert(Comp, Depth + 1))
+                if (Children[i]->BoundBox.IntersectsAABB(Comp->GetWorldBoundingBox()))
                 {
-                    bInserted = true;
-                    break;
+                    Children[i]->Insert(Comp, Depth + 1);
                 }
             }
-            if (!bInserted)
-            {
-                Components.Add(Comp);
-            }
         }
+        
+        // 리프 노드가 아니므로 컴포넌트 목록 비우기
+        Components.Empty();
     }
-    return true;
 }
 
-void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
+void FOctreeNode::FrustumCull(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
 {
     if (!Frustum.Intersects(BoundBox))
     {
@@ -113,10 +113,51 @@ void FOctreeNode::FrustumCull(Frustum& Frustum, TArray<UPrimitiveComponent*>& Ou
     }
 }
 
-bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin, float& tmin, float& tmax)
+// 물체가 너무 적음.
+void FOctreeNode::FrustumCullThreaded(const Frustum& Frustum, TArray<UPrimitiveComponent*>& OutComponents)
 {
-    tmin = -FLT_MAX;
-    tmax = FLT_MAX;
+    if (!Frustum.Intersects(BoundBox))
+    {
+        return;
+    }
+    
+    if (bIsLeaf)
+    {
+        for (UPrimitiveComponent* Comp : Components)
+        {
+            if (Frustum.Intersects(Comp->GetWorldBoundingBox()))
+            {
+                OutComponents.Add(Comp);
+            }
+        }
+        return;
+    }
+    TArray<std::thread> threads;
+    TArray<UPrimitiveComponent*> OutComponentsThreaded[8];
+    for (int32 i = 0; i < 8; ++i)
+    {
+        if (Children[i])
+        {
+            threads.Add(std::thread(&FOctreeNode::FrustumCull, Children[i].get(), std::ref(Frustum), std::ref(OutComponentsThreaded[i])));
+        }
+    }
+
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+
+    for (int32 i = 0; i < 8; ++i)
+    {
+        OutComponents += OutComponentsThreaded[i];
+    }
+
+}
+
+bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector& PickOrigin) const
+{
+    float tmin = -FLT_MAX;
+    float tmax = FLT_MAX;
     FVector RayDir = PickPosition - PickOrigin;
 
     float invD;
@@ -179,12 +220,8 @@ bool FOctreeNode::RayIntersectsOctree(const FVector& PickPosition, const FVector
 
 void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOrigin, TArray<UPrimitiveComponent*>& OutComps)
 {
-    float tmin, tmax;
-    if (!RayIntersectsOctree(PickPosition, PickOrigin, tmin, tmax))
-    {
+    if (!RayIntersectsOctree(PickPosition, PickOrigin))
         return;
-    }
-    
     if (bIsLeaf)
     {
         for (UPrimitiveComponent* Comp : Components)
@@ -206,5 +243,16 @@ void FOctreeNode::QueryByRay(const FVector& PickPosition, const FVector& PickOri
 
 uint32 FOctreeNode::CountAllComponents() const
 {
-    return Components.Num();
+    uint32 Count = Components.Num();
+    if (!bIsLeaf)
+    {
+        for (int32 i = 0; i < 8; ++i)
+        {
+            if (Children[i])
+            {
+                Count += Children[i]->CountAllComponents();
+            }
+        }
+    }
+    return Count;
 }

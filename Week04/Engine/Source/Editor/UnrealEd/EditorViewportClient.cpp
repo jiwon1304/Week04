@@ -597,7 +597,7 @@ void Frustum::CreatePlaneWithMatrix(const FMatrix& ViewProjection)
     }
 }
 
-bool Frustum::Intersects(const FBoundingBox& box)
+bool Frustum::Intersects(const FBoundingBox& box) const
 {
     for (int i = 0; i < 6; ++i)
     {

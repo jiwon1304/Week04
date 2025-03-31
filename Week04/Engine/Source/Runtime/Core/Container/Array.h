@@ -28,7 +28,7 @@ public:
 
     T& operator[](SizeType Index);
     const T& operator[](SizeType Index) const;
-	void operator+(const TArray& OtherArray);
+	void operator+=(const TArray& OtherArray);
 
 public:
     TArray();
@@ -132,7 +132,7 @@ const T& TArray<T, Allocator>::operator[](SizeType Index) const
 }
 
 template <typename T, typename Allocator>
-void TArray<T, Allocator>::operator+(const TArray& OtherArray)
+void TArray<T, Allocator>::operator+=(const TArray& OtherArray)
 {
 	ContainerPrivate.insert(end(), OtherArray.begin(), OtherArray.end());
 }

@@ -10,11 +10,15 @@
 
 #include "Core/HAL/PlatformType.h"
 #include "Core/Math/Vector4.h"
+#include "Core/Container/Array.h"
+
+constexpr UINT32 NUM_DEFERRED_CONTEXT = 8;
 
 class FGraphicsDevice {
 public:
     ID3D11Device* Device = nullptr;
     ID3D11DeviceContext* DeviceContext = nullptr;
+    TArray<ID3D11DeviceContext*> DeferredContexts;
     IDXGISwapChain* SwapChain = nullptr;
     ID3D11Texture2D* BackBuffer = nullptr;
     ID3D11Texture2D* UUIDFrameBuffer = nullptr;
@@ -39,6 +43,7 @@ public:
 
     void Initialize(HWND hWindow);
     void CreateDeviceAndSwapChain(HWND hWindow);
+    void CreateDeferredContext();
     void CreateDepthStencilBuffer(HWND hWindow);
     void CreateDepthStencilState();
     void CreateRasterizerState();
