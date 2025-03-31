@@ -1552,8 +1552,8 @@ HRESULT FRenderer::CreateUAV()
     //////////////////////////////////////////
     // UAV에 사용할 Texture 생성
     D3D11_TEXTURE2D_DESC textureDesc = {};
-    textureDesc.Width = Graphics->screenWidth;
-    textureDesc.Height = Graphics->screenHeight;
+    textureDesc.Width = Graphics->screenWidth/2;
+    textureDesc.Height = Graphics->screenHeight/2;
     textureDesc.MipLevels = 1;
     textureDesc.ArraySize = 1;
     textureDesc.Format = DXGI_FORMAT_R32_UINT;  // 원하는 형식
@@ -1639,7 +1639,15 @@ void FRenderer::DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, T
     //Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     PrepareRenderUUID(Graphics->DeviceContext);
     RenderUUID(InComponent, Graphics->DeviceContext);
-    OutComponent = ReadValidUUID();
+    std::unordered_set<UINT> UUIDs = ReadValidUUID();
+    for (UPrimitiveComponent* PrimComp : InComponent)
+    {
+        if (UUIDs.contains(PrimComp->GetUUID()))
+        {
+            OutComponent.Add(PrimComp);
+        }
+    }
+    Graphics->DeviceContext->RSSetViewports(1, &Graphics->Viewport);
 
 }
 
@@ -1649,8 +1657,14 @@ void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
     Context->PSSetShader(UUIDPixelShader, nullptr, 0);
     Context->IASetInputLayout(UUIDInputLayout);
     Context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+   
+    D3D11_TEXTURE2D_DESC textdesc;
+    D3D11_VIEWPORT desc = Graphics->Viewport;
+    UUIDMapTexture->GetDesc(&textdesc);
 
-    Context->RSSetViewports(1, &Graphics->Viewport);
+    desc.Width = textdesc.Width;
+    desc.Height = textdesc.Height;
+    Context->RSSetViewports(1, &desc);
      //Pixel Shader에 UAV 바인딩
 
     Graphics->DeviceContext->OMSetRenderTargets(1, &UUIDTextureRTV, Graphics->DepthStencilView);
@@ -1693,7 +1707,7 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
     Context->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
-TArray<UPrimitiveComponent*> FRenderer::ReadValidUUID()
+std::unordered_set<UINT> FRenderer::ReadValidUUID()
 {
     // 1. 스테이징
      Graphics->DeviceContext->CopyResource(UUIDStagingTexture, UUIDMapTexture);
@@ -1704,37 +1718,66 @@ TArray<UPrimitiveComponent*> FRenderer::ReadValidUUID()
     if (FAILED(hr))
     {
         // 맵핑 실패 시 처리
-        return TArray<UPrimitiveComponent*>();
+        return std::unordered_set<UINT>();
     }
-
-    // 3. 데이터를 CPU에서 읽기 (mappedResource.pData는 CPU에서 읽을 수 있는 데이터 포인터)
-    UINT* pData = reinterpret_cast<UINT*>(mappedResource.pData);
-
     // 예시: 데이터를 출력하거나 처리
     D3D11_TEXTURE2D_DESC desc;
     UUIDMapTexture->GetDesc(&desc);
-    
-    TSet<UINT> UUIDs;
 
-    for (int i = 0; i < desc.Width * desc.Height; ++i)
-    {
-        UUIDs.Add(pData[i]);
-    }
+    // 3. 데이터를 CPU에서 읽기 (mappedResource.pData는 CPU에서 읽을 수 있는 데이터 포인터)
+    UINT* pData = reinterpret_cast<UINT*>(mappedResource.pData);
+    int totalPixels = desc.Width * desc.Height;
+
+    constexpr int size = 1024;
+    static UINT* buffer = new UINT[size * size];
+    
+    totalPixels = totalPixels < size * size ? totalPixels : size * size;
+    memcpy(pData, buffer, totalPixels * sizeof(int));
 
     // 4. 언맵핑하여 GPU와 데이터 동기화
     Graphics->DeviceContext->Unmap(UUIDStagingTexture, 0);
 
 
-    TArray<UPrimitiveComponent*> Prims;
+    std::unordered_set<UINT> UUIDs;
 
-    for (UPrimitiveComponent* PrimComp : TObjectRange<UPrimitiveComponent>())
+    constexpr int numThreads = 8; // CPU 코어 수 기반 병렬 처리
+    int chunkSize = (totalPixels + numThreads - 1) / numThreads; // 각 스레드가 처리할 픽셀 개수
+
+    std::vector<std::thread> threads;
+    std::unordered_set<UINT> threadUUIDs[numThreads]; // 스레드별 지역 TSet
+
+    // 🔹 멀티스레딩 실행
+    for (int t = 0; t < numThreads; ++t)
     {
-        if (UUIDs.Contains(PrimComp->GetUUID()))
-        {
-            Prims.Add(PrimComp);
-        }
+        threads.emplace_back([&, t]()
+            {
+                int startIdx = t * chunkSize;
+                int endIdx = std::min(startIdx + chunkSize, totalPixels);
+
+                // 🔸 지역 UUID Set에 데이터 저장
+                for (int i = startIdx; i < endIdx; ++i)
+                {
+                    threadUUIDs[t].emplace(buffer[i]);
+                }
+            });
     }
-    return Prims;
+
+    // 🔹 모든 스레드 종료 대기
+    for (auto& thread : threads)
+    {
+        thread.join();
+    }
+
+    // 🔹 병합 단계: 모든 스레드의 데이터를 UUIDs에 합침
+    std::mutex m;
+    for (int t = 0; t < numThreads; ++t)
+    {
+        std::lock_guard<std::mutex> lock(m);
+        UUIDs.merge(threadUUIDs[t]);
+    }
+
+
+    return UUIDs;
 }
 
 

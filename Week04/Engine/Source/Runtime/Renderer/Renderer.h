@@ -176,7 +176,7 @@ private:
     void DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent);
     void PrepareRenderUUID(ID3D11DeviceContext* Context);
     void RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context);
-    TArray<UPrimitiveComponent*> ReadValidUUID();
+    std::unordered_set<UINT> ReadValidUUID();
     ID3D11VertexShader* UUIDVertexShader = nullptr;
     ID3D11PixelShader* UUIDPixelShader = nullptr;
     ID3D11InputLayout* UUIDInputLayout = nullptr;
