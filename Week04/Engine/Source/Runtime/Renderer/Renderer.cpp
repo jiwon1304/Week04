@@ -1711,16 +1711,19 @@ void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
     Context->RSSetViewports(1, &Graphics->Viewport);
      //Pixel Shader에 UAV 바인딩
 
-    ID3D11UnorderedAccessView* uavs[] = { UUIDTextureUAV, UUIDListUAV };
-    UINT initialCounts[] = { 0, 0 };
-    Context->OMSetRenderTargetsAndUnorderedAccessViews(
-        0, nullptr, Graphics->DepthStencilView, 1, 2, uavs, initialCounts);
+    //ID3D11UnorderedAccessView* uavs[] = { UUIDTextureUAV, UUIDListUAV };
+    //UINT initialCounts[] = { 0, 0 };
+    //Context->OMSetRenderTargetsAndUnorderedAccessViews(
+    //    0, nullptr, Graphics->DepthStencilView, 1, 2, uavs, initialCounts);
 
+
+    //https://gamedev.net/forums/topic/672525-writing-to-uav-buffer/
     //Context->OMSetRenderTargetsAndUnorderedAccessViews(
         //0, nullptr, Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
 
-    //Graphics->DeviceContext->OMSetRenderTargetsAndUnorderedAccessViews(
-    //    1, &Graphics->RTVs[0], Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
+    // For pixel shaders, UAVStartSlot should be equal to the number of render-target views being bound.
+    Graphics->DeviceContext->OMSetRenderTargetsAndUnorderedAccessViews(
+        1, &Graphics->RTVs[0], Graphics->DepthStencilView, 1, 1, &UUIDTextureUAV, nullptr);
 }
 
 void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context)
@@ -1779,9 +1782,9 @@ void FRenderer::ReadValidUUID()
     Graphics->DeviceContext->CSSetShader(UUIDComputeShader, nullptr, 0);
     Graphics->DeviceContext->Dispatch(Graphics->screenWidth / 16, Graphics->screenHeight / 16, 1);  // Thread groups 크기 설정
 
-    // UAV에 대한 쓰기를 완료하려면 UAV의 상태를 마무리 처리합니다.
-    ID3D11UnorderedAccessView* nullUAV = nullptr;
-    Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);  // UAV를 해제
+    //// UAV에 대한 쓰기를 완료하려면 UAV의 상태를 마무리 처리합니다.
+    //ID3D11UnorderedAccessView* nullUAV = nullptr;
+    //Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);  // UAV를 해제
 
 
     // UUIDList의 내용을 읽기 위한 Map 작업
@@ -1804,7 +1807,12 @@ void FRenderer::ReadValidUUID()
         Graphics->DeviceContext->Unmap(UUIDListBuffer, 0);
     }
 
+    // 해제하주기
+    ID3D11ShaderResourceView* nullSRV[1] = { nullptr };
+    ID3D11UnorderedAccessView* nullUAV[1] = { nullptr };
 
+    Graphics->DeviceContext->CSSetShaderResources(0, 1, &nullSRV[0]);  // t0: UUIDTextureRead (읽기)
+    Graphics->DeviceContext->CSSetUnorderedAccessViews(2, 1, &nullUAV[0], nullptr);  // u2: UUIDList (쓰기)
 }
 
 

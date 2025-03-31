@@ -29,7 +29,9 @@ PS_INPUT mainVS(VS_INPUT input)
 void mainPS(PS_INPUT input)
 {
     int2 coord = int2(input.position.xy);
-    UUIDTextureWrite[int2(10, 10)] = 123412; // UAV에 UUID 저장
+    //UUIDTextureWrite[float2(0, 0)] = uint(123); // UAV에 UUID 저장
+    //UUIDTextureWrite[int(coord.x), int(coord.y)] = uint(1);
+    UUIDTextureWrite[int2(0,0)] = 141414;
 }
 
 ////////////////////////////////////////////////
