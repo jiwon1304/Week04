@@ -1269,7 +1269,8 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
     
-    DiscardByUUID(Components, Components);
+    TArray<UPrimitiveComponent*> UUIDs;
+    DiscardByUUID(Components, UUIDs);
 
 
     // Setup
@@ -1282,7 +1283,7 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     Graphics->DeviceContext->OMSetDepthStencilState(Graphics->DepthStencilState, 0);
     // End Setup
 
-    for (const auto& Comp : Components)
+    for (const auto& Comp : UUIDs)
     {
         if (GizmoActor->GetComponents().Contains(Comp))
         {
@@ -1423,7 +1424,10 @@ void FRenderer::RenderStaticMeshes()
 
             // Split the DataArray into chunks and process each chunk in a separate thread
             size_t chunk_size = DataArray.size() / (NUM_DEFERRED_CONTEXT-1);  // Divide by number of hardware threads
-            
+            if (DataArray.size() <= 512)
+            {
+                chunk_size = DataArray.size();
+            }
             for (size_t i = 0; i < DataArray.size(); i += chunk_size)
             {
                 // Calculate the end index of the chunk
@@ -1447,21 +1451,15 @@ void FRenderer::RenderStaticMeshes()
 
     for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
     {
-        if (!CommandList[i])
-        {
-            Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
-        }
+        Graphics->DeferredContexts[i]->FinishCommandList(FALSE, &CommandList[i]);
     }
 
     // Command list execute
     for (int i = 0; i < NUM_DEFERRED_CONTEXT; i++)
     {
-        if (!CommandList[i])
-        {
-            Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
-            CommandList[i]->Release();
-            CommandList[i] = nullptr;
-        }
+        Graphics->DeviceContext->ExecuteCommandList(CommandList[i], true);
+        CommandList[i]->Release();
+        CommandList[i] = nullptr;
     }
 }
 
@@ -1699,7 +1697,16 @@ void FRenderer::DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, T
     //Graphics->DeviceContext->ClearDepthStencilView(Graphics->DepthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
     PrepareRenderUUID(Graphics->DeviceContext);
     RenderUUID(InComponent, Graphics->DeviceContext);
-    ReadValidUUID();
+    TArray<UINT> UUIDs = ReadValidUUID();
+
+    for (UPrimitiveComponent* PrimComp : TObjectRange<UPrimitiveComponent>())
+    {
+        if (UUIDs.Contains(PrimComp->GetUUID()))
+        {
+            OutComponent.Add(PrimComp);
+        }
+    }
+    
 }
 
 void FRenderer::PrepareRenderUUID(ID3D11DeviceContext* Context)
@@ -1772,7 +1779,7 @@ void FRenderer::RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D
     Graphics->DeviceContext->OMSetRenderTargetsAndUnorderedAccessViews(0, nullptr, nullptr, 0, 1, &nullUAV, nullptr);
 }
 
-void FRenderer::ReadValidUUID()
+TArray<UINT> FRenderer::ReadValidUUID()
 {
     // UAV를 SRV로 전환
 
@@ -1788,7 +1795,9 @@ void FRenderer::ReadValidUUID()
     //ID3D11UnorderedAccessView* nullUAV = nullptr;
     //Graphics->DeviceContext->CSSetUnorderedAccessViews(0, 1, &nullUAV, nullptr);  // UAV를 해제
 
-
+    // UUID 담을곳
+    TArray<UINT> UUIDs;
+    
     // UUIDList의 내용을 읽기 위한 Map 작업
     D3D11_MAPPED_SUBRESOURCE mappedResource;
     HRESULT hr = Graphics->DeviceContext->Map(UUIDListBuffer, 0, D3D11_MAP_READ, 0, &mappedResource);
@@ -1803,7 +1812,7 @@ void FRenderer::ReadValidUUID()
         for (uint32 i = 1; i <= uuidCount; ++i)
         {
             uint32 uuid = pUUIDList[i];
-
+            UUIDs.Add(uuid);
             // 처리할 UUID 값을 사용
         }
 
@@ -1816,6 +1825,7 @@ void FRenderer::ReadValidUUID()
 
     Graphics->DeviceContext->CSSetShaderResources(0, 1, &nullSRV[0]);  // t0: UUIDTextureRead (읽기)
     Graphics->DeviceContext->CSSetUnorderedAccessViews(2, 1, &nullUAV[0], nullptr);  // u2: UUIDList (쓰기)
+    return UUIDs;
 }
 
 

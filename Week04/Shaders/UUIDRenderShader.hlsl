@@ -26,6 +26,7 @@ PS_INPUT mainVS(VS_INPUT input)
 }
 
 // output color 없음. depth만 기록하고, UUID는 UUIDBuffer에 기록(이후 compute shader에서 사용)
+// 현재 Depth랑 비교 못함....
 void mainPS(PS_INPUT input)
 {
     int2 coord = int2(input.position.xy);
@@ -46,6 +47,7 @@ void mainCS(uint3 DTid : SV_DispatchThreadID)
     return;
     int2 pixelPos = DTid.xy;
     uint uuid = UUIDTextureRead.Load(int3(pixelPos, 0));
+    UUIDList[0] = uuid;
 
     if (uuid == 0)
         return; // 배경이면 무시
@@ -59,7 +61,6 @@ void mainCS(uint3 DTid : SV_DispatchThreadID)
         }
     }
 
-    // 2️⃣ Atomic 연산으로 리스트에 추가
     uint index;
     InterlockedAdd(UUIDList[0], 1, index);
     UUIDList[index + 1] = uuid;

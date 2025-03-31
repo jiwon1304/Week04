@@ -169,7 +169,6 @@ public: // line shader
     void RenderBillboards();
 
     // early uuid rendering
-    // !!!!! input layout에 맞게 수정필요.
 private:
     HRESULT CreateUAV();
     void ReleaseUAV();
@@ -177,7 +176,7 @@ private:
     void DiscardByUUID(const TArray<UPrimitiveComponent*>& InComponent, TArray<UPrimitiveComponent*>& OutComponent);
     void PrepareRenderUUID(ID3D11DeviceContext* Context);
     void RenderUUID(const TArray<UPrimitiveComponent*>& InComponent, ID3D11DeviceContext* Context);
-    void ReadValidUUID();
+    TArray<UINT> ReadValidUUID();
     ID3D11VertexShader* UUIDVertexShader = nullptr;
     ID3D11PixelShader* UUIDPixelShader = nullptr;
     ID3D11ComputeShader* UUIDComputeShader = nullptr;
