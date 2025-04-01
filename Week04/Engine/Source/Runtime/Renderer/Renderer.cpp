@@ -1256,10 +1256,15 @@ void FRenderer::PrepareRender(bool bShouldUpdateRender)
     TArray<UPrimitiveComponent*> Components;
     Octree->FrustumCull(Frustum, Components);
 
+    TSet<UPrimitiveComponent*> UniqueComponents;
+    for (const auto& Comp : Components) {
+        UniqueComponents.Add(Comp);
+    }
+
     AActor* SelectedActor = World->GetSelectedActor();
     UTransformGizmo* GizmoActor = World->LocalGizmo;
     
-    for (const auto& Comp : Components)
+    for (const auto& Comp : UniqueComponents)
     {
         if (GizmoActor->GetComponents().Contains(Comp))
         {
